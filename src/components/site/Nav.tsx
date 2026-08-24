@@ -7,7 +7,6 @@ import { Menu, X } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { nav, profile } from "@/lib/content";
 import { cn } from "@/lib/utils";
-import { ThemeToggle } from "./ThemeToggle";
 
 export function Nav() {
   const pathname = usePathname();
@@ -72,7 +71,6 @@ export function Nav() {
         </div>
 
         <div className="flex items-center gap-3">
-          <ThemeToggle />
           <Link href="/resume.pdf" className="btn-primary hidden !px-5 !py-2.5 md:inline-flex" download>
             Resume
           </Link>

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Linkedin, Mail, MapPin } from "lucide-react";
 import { nav, profile } from "@/lib/content";
+import { ThemeToggle } from "./ThemeToggle";
 
 export function Footer() {
   return (
@@ -49,9 +50,7 @@ export function Footer() {
 
         <div className="mt-14 flex flex-col gap-3 border-t border-line pt-7 text-sm text-ink-muted sm:flex-row sm:items-center sm:justify-between dark:border-white/10">
           <span>© {new Date().getFullYear()} {profile.name}. All rights reserved.</span>
-          {/* <Link href="/admin" className="font-mono text-xs uppercase tracking-[0.16em] transition-colors hover:text-primary">
-            Admin
-          </Link> */}
+          <ThemeToggle />
         </div>
       </div>
     </footer>
