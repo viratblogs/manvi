@@ -8,7 +8,7 @@ service cloud.firestore {
     // Admin UIDs from Firebase Console > Authentication > Users.
     function isAdmin() {
       return request.auth != null && (
-        request.auth.uid == 'dmLl4oRKlceC7g1La2t8ahRhLAy1' ||
+        request.auth.uid == 'PvU0uS7iJ5fOx5bETBVbhs9Npz53' ||
         request.auth.uid == 'tIlyhAFaKsVXdATXm2FgvxWQ75r2'
       );
     }
