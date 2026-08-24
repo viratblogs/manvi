@@ -1,0 +1,8 @@
+// NOT USED.
+//
+// This project does not use Cloud Storage, which since February 2026 requires a
+// billing account. Images are hosted on a free third-party service and only their
+// links are stored, in Firestore.
+//
+// If you later upgrade to the Blaze plan and want real uploads, ask for the
+// upload version of the media page and restore rules here.
