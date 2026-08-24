@@ -71,7 +71,7 @@ export default function AboutPage() {
                 <div className="font-mono text-xs uppercase tracking-[0.16em] text-ink-muted md:pt-1.5">
                   {item.period}
                 </div>
-                {/* <div className="relative md:pl-12">
+                <div className="relative md:pl-12">
                   <span
                     aria-hidden
                     className="absolute left-[-4.5px] top-2 hidden h-[9px] w-[9px] rounded-full border-2 border-primary bg-surface md:block dark:bg-[#0B0F16]"
@@ -79,7 +79,7 @@ export default function AboutPage() {
                   <h3 className="font-display text-card font-semibold">{item.title}</h3>
                   <div className="mt-1.5 text-sm text-primary dark:text-[#7FB3E0]">{item.org}</div>
                   <p className="mt-4 max-w-2xl text-[1.0625rem] leading-relaxed text-ink-muted">{item.body}</p>
-                </div> */}
+                </div>
               </StaggerItem>
             ))}
           </Stagger>

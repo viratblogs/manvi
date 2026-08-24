@@ -84,10 +84,10 @@ export function Hero() {
       </div>
 
       <div className="shell hidden pb-10 lg:block">
-        <div className="flex items-center gap-3 font-mono text-[0.625rem] uppercase tracking-[0.16em] text-ink-faint">
+        {/* <div className="flex items-center gap-3 font-mono text-[0.625rem] uppercase tracking-[0.16em] text-ink-faint">
           <ArrowDown className="h-3.5 w-3.5 animate-bounce" aria-hidden />
           Scroll
-        </div>
+        </div> */}
       </div>
     </section>
   );
