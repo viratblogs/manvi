@@ -37,5 +37,8 @@ const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
 export const db = getFirestore(app);
-export const ADMIN_UID = process.env.NEXT_PUBLIC_ADMIN_UID ?? "";
+export const ADMIN_UIDS: string[] = (process.env.NEXT_PUBLIC_ADMIN_UID ?? "")
+  .split(",")
+  .map((uid) => uid.trim())
+  .filter(Boolean);
 export default app;

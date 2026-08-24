@@ -5,7 +5,7 @@ import {
   onAuthStateChanged, sendPasswordResetEmail, signInWithEmailAndPassword,
   signOut, type User,
 } from "firebase/auth";
-import { ADMIN_UID, auth } from "./firebase";
+import { ADMIN_UIDS, auth } from "./firebase";
 
 interface AuthState {
   user: User | null;
@@ -27,7 +27,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const value: AuthState = {
     user,
     // Client-side gate for UX only. The real gate is in firestore.rules.
-    isAdmin: !!user && (!ADMIN_UID || user.uid === ADMIN_UID),
+    isAdmin: !!user && (ADMIN_UIDS.length === 0 || ADMIN_UIDS.includes(user.uid)),
     loading,
     login: async (email, password) => { await signInWithEmailAndPassword(auth, email, password); },
     logout: async () => { await signOut(auth); },
