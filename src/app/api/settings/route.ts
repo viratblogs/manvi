@@ -9,25 +9,32 @@ export const revalidate = 0;
 
 export async function GET() {
   try {
-    let settings = serverStore.getSettings();
+    const localSettings = serverStore.getSettings();
+    let finalSettings: SiteSettings = { ...localSettings };
 
-    // Query Firestore document 'settings/site'
+    // Query Firestore document 'settings/site' only to merge if remote is strictly newer
     try {
       const snap = await getDoc(doc(db, "settings", "site"));
       if (snap.exists()) {
         const remoteData = snap.data() as Partial<SiteSettings>;
-        settings = {
-          ...settings,
-          ...remoteData,
-        };
-        serverStore.updateSettings(settings);
+        const remoteTime = remoteData.updatedAt || 0;
+        const localTime = localSettings.updatedAt || 0;
+
+        // Prevent stale Firestore reads from overwriting newer local serverStore settings
+        if (remoteTime > localTime) {
+          finalSettings = {
+            ...localSettings,
+            ...remoteData,
+          };
+          serverStore.updateSettings(finalSettings);
+        }
       }
     } catch (e) {
       console.warn("[API/Settings] Firestore read fallback to serverStore:", e);
     }
 
     return NextResponse.json(
-      { success: true, settings },
+      { success: true, settings: finalSettings },
       {
         headers: {
           "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0",
@@ -47,7 +54,7 @@ export async function PUT(request: Request) {
     const body = await request.json();
     const settings = serverStore.updateSettings(body);
 
-    // Sync to Firestore synchronously so remote document matches serverStore
+    // Sync to Firestore synchronously
     try {
       await setDoc(doc(db, "settings", "site"), settings, { merge: true });
     } catch (e) {
