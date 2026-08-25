@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { Eye, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { AlertCircle, Eye, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { StatusPill } from "@/components/admin/StatusPill";
 import { deleteBlog, getAllBlogs } from "@/lib/blogs";
@@ -13,12 +13,21 @@ import type { Blog } from "@/types";
 export default function AdminBlogsPage() {
   const [blogs, setBlogs] = useState<Blog[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState("");
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
   const [category, setCategory] = useState("all");
 
   useEffect(() => {
-    getAllBlogs().then(setBlogs).catch(() => {}).finally(() => setLoading(false));
+    getAllBlogs()
+      .then(setBlogs)
+      .catch((err) => {
+        console.error("[AdminBlogsPage] Failed to load blogs:", err);
+        setFetchError(
+          "Could not load posts. Check that your Firestore rules allow this admin UID to read."
+        );
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   const filtered = useMemo(() => {
@@ -45,6 +54,16 @@ export default function AdminBlogsPage() {
         </div>
         <Link href="/admin/blogs/new" className="btn-primary"><Plus className="h-4 w-4" /> New post</Link>
       </div>
+
+      {fetchError && (
+        <div
+          role="alert"
+          className="mt-5 flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-300"
+        >
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+          {fetchError}
+        </div>
+      )}
 
       <div className="mt-7 flex flex-wrap gap-3">
         <div className="relative min-w-[220px] flex-1">

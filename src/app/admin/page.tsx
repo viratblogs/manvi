@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { FileCheck2, FilePen, FileText, Mail, Plus, Upload } from "lucide-react";
+import { AlertCircle, FileCheck2, FilePen, FileText, Mail, Plus, Upload } from "lucide-react";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { StatusPill } from "@/components/admin/StatusPill";
 import { getAllBlogs } from "@/lib/blogs";
@@ -14,11 +14,19 @@ export default function AdminDashboard() {
   const [blogs, setBlogs] = useState<Blog[]>([]);
   const [leads, setLeads] = useState<ContactLead[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState("");
 
   useEffect(() => {
     Promise.all([getAllBlogs(), getLeads()])
       .then(([b, l]) => { setBlogs(b); setLeads(l); })
-      .catch(() => { /* rules may block until admin UID is set */ })
+      .catch((err) => {
+        // Firestore rules may block reads until the admin UID env var is set.
+        // Log for debugging without exposing raw Firebase errors to the UI.
+        console.error("[AdminDashboard] Failed to load dashboard data:", err);
+        setFetchError(
+          "Could not load dashboard data. Check that your Firestore rules allow this admin UID to read."
+        );
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -35,6 +43,16 @@ export default function AdminDashboard() {
       <p className="mt-1.5 text-sm text-ink-muted">
         {loading ? "Loading…" : `${blogs.length} posts · ${leads.length} enquiries`}
       </p>
+
+      {fetchError && (
+        <div
+          role="alert"
+          className="mt-5 flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-300"
+        >
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+          {fetchError}
+        </div>
+      )}
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((s) => (

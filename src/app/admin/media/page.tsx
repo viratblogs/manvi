@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, Copy, ExternalLink, Plus, Trash2 } from "lucide-react";
+import { AlertCircle, Check, Copy, ExternalLink, Plus, Trash2 } from "lucide-react";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { deleteMedia, getMedia, saveMediaUrl, validateUrl } from "@/lib/media";
 import { formatShortDate } from "@/lib/utils";
@@ -10,13 +10,24 @@ import type { MediaAsset } from "@/types";
 export default function MediaPage() {
   const [assets, setAssets] = useState<MediaAsset[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState("");
   const [url, setUrl] = useState("");
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState("");
 
-  useEffect(() => { getMedia().then(setAssets).catch(() => {}).finally(() => setLoading(false)); }, []);
+  useEffect(() => {
+    getMedia()
+      .then(setAssets)
+      .catch((err) => {
+        console.error("[MediaPage] Failed to load media library:", err);
+        setFetchError(
+          "Could not load the media library. Check that your Firestore rules allow this admin UID to read."
+        );
+      })
+      .finally(() => setLoading(false));
+  }, []);
 
   async function save() {
     const result = validateUrl(url);
@@ -51,6 +62,16 @@ export default function MediaPage() {
       <p className="mt-1.5 text-sm text-ink-muted">
         Your saved image links, ready to paste into any post.
       </p>
+
+      {fetchError && (
+        <div
+          role="alert"
+          className="mt-5 flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-300"
+        >
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+          {fetchError}
+        </div>
+      )}
 
       <section className="mt-7 rounded-xl border border-line bg-surface p-6 dark:border-white/10 dark:bg-white/[0.03]">
         <h2 className="measure mb-5">Save a new link</h2>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Archive, Mail, MailOpen, Trash2 } from "lucide-react";
+import { AlertCircle, Archive, Mail, MailOpen, Trash2 } from "lucide-react";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { deleteLead, getLeads, setLeadStatus } from "@/lib/contacts";
 import { cn, formatDate } from "@/lib/utils";
@@ -17,10 +17,21 @@ const filters: { value: string; label: string }[] = [
 export default function LeadsPage() {
   const [leads, setLeads] = useState<ContactLead[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState("");
   const [filter, setFilter] = useState("all");
   const [openId, setOpenId] = useState<string | null>(null);
 
-  useEffect(() => { getLeads().then(setLeads).catch(() => {}).finally(() => setLoading(false)); }, []);
+  useEffect(() => {
+    getLeads()
+      .then(setLeads)
+      .catch((err) => {
+        console.error("[LeadsPage] Failed to load enquiries:", err);
+        setFetchError(
+          "Could not load enquiries. Check that your Firestore rules allow this admin UID to read."
+        );
+      })
+      .finally(() => setLoading(false));
+  }, []);
 
   const filtered = useMemo(
     () => (filter === "all" ? leads : leads.filter((l) => l.status === filter)),
@@ -50,6 +61,16 @@ export default function LeadsPage() {
       <p className="mt-1.5 text-sm text-ink-muted">
         {leads.filter((l) => l.status === "new").length} unread of {leads.length} total
       </p>
+
+      {fetchError && (
+        <div
+          role="alert"
+          className="mt-5 flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-300"
+        >
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+          {fetchError}
+        </div>
+      )}
 
       <div className="mt-7 flex flex-wrap gap-2">
         {filters.map((f) => (
