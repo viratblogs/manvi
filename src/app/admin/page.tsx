@@ -2,38 +2,45 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { AlertCircle, FileCheck2, FilePen, FileText, Mail, Plus, Upload } from "lucide-react";
+import { AlertCircle, Award, Briefcase, FileCheck2, FileText, Mail, Plus, Upload, User } from "lucide-react";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { StatusPill } from "@/components/admin/StatusPill";
-import { getAllBlogs } from "@/lib/blogs";
-import { getLeads } from "@/lib/contacts";
+import { getAllBlogs } from "@/lib/services/blogs.service";
+import { getLeads } from "@/lib/services/contacts.service";
+import { getAllCaseStudies } from "@/lib/services/caseStudies.service";
+import { getAchievements } from "@/lib/services/achievements.service";
 import { formatShortDate } from "@/lib/utils";
-import type { Blog, ContactLead } from "@/types";
+import type { Blog, ContactLead, FirestoreCaseStudy, Achievement } from "@/types";
 
 export default function AdminDashboard() {
   const [blogs, setBlogs] = useState<Blog[]>([]);
   const [leads, setLeads] = useState<ContactLead[]>([]);
+  const [caseStudies, setCaseStudies] = useState<FirestoreCaseStudy[]>([]);
+  const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState("");
 
   useEffect(() => {
-    Promise.all([getAllBlogs(), getLeads()])
-      .then(([b, l]) => { setBlogs(b); setLeads(l); })
+    Promise.all([getAllBlogs(), getLeads(), getAllCaseStudies(), getAchievements()])
+      .then(([b, l, cs, ach]) => {
+        setBlogs(b);
+        setLeads(l);
+        setCaseStudies(cs);
+        setAchievements(ach);
+      })
       .catch((err) => {
-        // Firestore rules may block reads until the admin UID env var is set.
-        // Log for debugging without exposing raw Firebase errors to the UI.
         console.error("[AdminDashboard] Failed to load dashboard data:", err);
         setFetchError(
-          "Could not load dashboard data. Check that your Firestore rules allow this admin UID to read."
+          "Could not load dashboard data. Check that your Firestore rules allow access."
         );
       })
       .finally(() => setLoading(false));
   }, []);
 
   const stats = [
+    { label: "Case Studies", value: caseStudies.length, icon: Briefcase },
+    { label: "Certifications", value: achievements.length, icon: Award },
     { label: "Total blogs", value: blogs.length, icon: FileText },
-    { label: "Published", value: blogs.filter((b) => b.status === "published").length, icon: FileCheck2 },
-    { label: "Drafts", value: blogs.filter((b) => b.status === "draft").length, icon: FilePen },
     { label: "New leads", value: leads.filter((l) => l.status === "new").length, icon: Mail },
   ];
 
@@ -41,7 +48,7 @@ export default function AdminDashboard() {
     <AdminShell>
       <h1 className="font-display text-2xl font-semibold">Dashboard</h1>
       <p className="mt-1.5 text-sm text-ink-muted">
-        {loading ? "Loading…" : `${blogs.length} posts · ${leads.length} enquiries`}
+        {loading ? "Loading…" : `${caseStudies.length} case studies · ${achievements.length} certifications · ${blogs.length} posts`}
       </p>
 
       {fetchError && (
@@ -69,30 +76,33 @@ export default function AdminDashboard() {
       </div>
 
       <div className="mt-8 flex flex-wrap gap-3">
-        <Link href="/admin/blogs/new" className="btn-primary"><Plus className="h-4 w-4" /> Write a post</Link>
-        <Link href="/admin/media" className="btn-ghost"><Upload className="h-4 w-4" /> Upload media</Link>
+        <Link href="/admin/settings" className="btn-primary"><User className="h-4 w-4 mr-1" /> Update profile photo</Link>
+        <Link href="/admin/case-studies/new" className="btn-ghost"><Plus className="h-4 w-4 mr-1" /> New case study</Link>
+        <Link href="/admin/achievements" className="btn-ghost"><Award className="h-4 w-4 mr-1" /> Manage certifications</Link>
+        <Link href="/admin/media" className="btn-ghost"><Upload className="h-4 w-4 mr-1" /> Upload media</Link>
       </div>
 
       <div className="mt-10 grid gap-6 lg:grid-cols-2">
+        {/* Case Studies */}
         <section className="card !p-0">
           <div className="flex items-center justify-between border-b border-line px-6 py-4 dark:border-white/10">
-            <h2 className="font-medium">Recent posts</h2>
-            <Link href="/admin/blogs" className="text-sm text-primary">View all</Link>
+            <h2 className="font-medium">Recent case studies</h2>
+            <Link href="/admin/case-studies" className="text-sm text-primary">View all</Link>
           </div>
-          {blogs.length === 0 ? (
+          {caseStudies.length === 0 ? (
             <p className="px-6 py-10 text-center text-sm text-ink-muted">
-              {loading ? "Loading…" : "No posts yet. Write your first one."}
+              {loading ? "Loading…" : "No case studies yet. Create your first one."}
             </p>
           ) : (
             <ul className="divide-y divide-line dark:divide-white/10">
-              {blogs.slice(0, 5).map((b) => (
-                <li key={b.id}>
-                  <Link href={`/admin/blogs/${b.id}`} className="flex items-center justify-between gap-4 px-6 py-4 transition-colors hover:bg-surface-sub dark:hover:bg-white/[0.03]">
+              {caseStudies.slice(0, 5).map((cs) => (
+                <li key={cs.id}>
+                  <Link href={`/admin/case-studies/${cs.id}`} className="flex items-center justify-between gap-4 px-6 py-4 transition-colors hover:bg-surface-sub dark:hover:bg-white/[0.03]">
                     <div className="min-w-0">
-                      <div className="truncate text-sm font-medium">{b.title || "Untitled"}</div>
-                      <div className="mt-0.5 text-xs text-ink-muted">{b.category} · {formatShortDate(b.updatedAt)}</div>
+                      <div className="truncate text-sm font-medium">{cs.title}</div>
+                      <div className="mt-0.5 text-xs text-ink-muted">{cs.context || `Index ${cs.index}`} · {formatShortDate(cs.updatedAt)}</div>
                     </div>
-                    <StatusPill status={b.status} />
+                    <span className="font-mono text-xs font-semibold text-primary">{cs.index}</span>
                   </Link>
                 </li>
               ))}
@@ -100,24 +110,27 @@ export default function AdminDashboard() {
           )}
         </section>
 
+        {/* Certifications */}
         <section className="card !p-0">
           <div className="flex items-center justify-between border-b border-line px-6 py-4 dark:border-white/10">
-            <h2 className="font-medium">Recent enquiries</h2>
-            <Link href="/admin/leads" className="text-sm text-primary">View all</Link>
+            <h2 className="font-medium">Certifications</h2>
+            <Link href="/admin/achievements" className="text-sm text-primary">View all</Link>
           </div>
-          {leads.length === 0 ? (
+          {achievements.length === 0 ? (
             <p className="px-6 py-10 text-center text-sm text-ink-muted">
-              {loading ? "Loading…" : "No enquiries yet."}
+              {loading ? "Loading…" : "No certifications yet."}
             </p>
           ) : (
             <ul className="divide-y divide-line dark:divide-white/10">
-              {leads.slice(0, 5).map((l) => (
-                <li key={l.id} className="px-6 py-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="truncate text-sm font-medium">{l.name}</span>
-                    <span className="shrink-0 text-xs text-ink-muted">{formatShortDate(l.createdAt)}</span>
+              {achievements.slice(0, 5).map((a) => (
+                <li key={a.id} className="px-6 py-4 flex items-center justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-medium">{a.title}</div>
+                    <div className="mt-0.5 text-xs text-ink-muted">{a.organisation} · {a.year}</div>
                   </div>
-                  <p className="mt-1 truncate text-xs text-ink-muted">{l.subject}</p>
+                  <span className="shrink-0 text-xs rounded-full bg-primary/10 px-2 py-0.5 font-semibold text-primary">
+                    {a.category}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -127,4 +140,3 @@ export default function AdminDashboard() {
     </AdminShell>
   );
 }
-

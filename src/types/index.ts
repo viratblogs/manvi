@@ -1,5 +1,61 @@
 export type BlogStatus = "draft" | "published" | "scheduled";
 
+// ---------------------------------------------------------------------------
+// Achievement
+// ---------------------------------------------------------------------------
+
+export type AchievementCategory = "Award" | "Certification" | "Recognition" | "Academic";
+
+export interface Achievement {
+  id: string;
+  title: string;
+  organisation: string;
+  year: number;
+  category: AchievementCategory;
+  description: string;
+  imageUrl?: string;
+  credentialUrl?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+// ---------------------------------------------------------------------------
+// Site Settings
+// ---------------------------------------------------------------------------
+
+export interface SiteSettings {
+  /** URL of the hero / profile photo shown on the homepage and About page. */
+  heroImageUrl: string;
+  updatedAt: number;
+}
+
+// ---------------------------------------------------------------------------
+// Case Study (Firestore version — mirrors the static CaseStudy in content.ts)
+// ---------------------------------------------------------------------------
+
+export interface CaseStudyResult {
+  value: string;
+  label: string;
+  note: string;
+}
+
+export interface FirestoreCaseStudy {
+  id: string;
+  slug: string;
+  index: string;
+  title: string;
+  summary: string;
+  coverImage?: string;
+  context: string;
+  situation: string;
+  task: string;
+  action: string[];
+  results: CaseStudyResult[];
+  takeaways: string[];
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface Blog {
   id: string;
   title: string;

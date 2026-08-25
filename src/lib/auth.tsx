@@ -1,39 +1,24 @@
-/**
- * Auth context for the entire application.
- *
- * Architecture notes:
- * - Firebase Authentication is the only auth provider. There are no server-side
- *   sessions, cookies, or JWTs managed by Next.js. Everything is client-side.
- * - `isAdmin` is a client-side UX gate only. It is derived from `ADMIN_UIDS`, which
- *   is intentionally a NEXT_PUBLIC_ env var. The REAL security boundary is in
- *   firestore.rules — Firestore rejects any write from a non-admin UID regardless of
- *   what this context says.
- * - The `onAuthStateChanged` listener is set up once in `<AuthProvider>` (mounted at
- *   the root layout) and tears itself down automatically on unmount via the unsubscribe
- *   function it returns.
- */
-
 "use client";
 
 import { createContext, useContext, useEffect, useState } from "react";
 import {
   onAuthStateChanged,
   sendPasswordResetEmail,
-  signInWithEmailAndPassword,
-  signOut,
   type User,
 } from "firebase/auth";
 import { ADMIN_UIDS, auth } from "./firebase";
+import {
+  loginWithEmailAndPassword,
+  logoutUser,
+  setAdminCookie,
+  clearAdminCookie,
+  isUidAllowed,
+} from "./services/auth.service";
 
 // ---------------------------------------------------------------------------
 // Custom error for non-admin accounts
 // ---------------------------------------------------------------------------
 
-/**
- * Thrown by login() when Firebase authenticates the user successfully but
- * their UID is not in the NEXT_PUBLIC_ADMIN_UID allow-list.
- * Distinct from FirebaseError so the login page can show a specific message.
- */
 export class AdminNotAuthorizedError extends Error {
   constructor(public readonly uid: string, public readonly email: string) {
     super(`UID ${uid} is not in the admin allow-list.`);
@@ -46,25 +31,11 @@ export class AdminNotAuthorizedError extends Error {
 // ---------------------------------------------------------------------------
 
 interface AuthState {
-  /** The currently signed-in Firebase user, or null if signed out. */
   user: User | null;
-  /**
-   * True only when the user's UID is in the ADMIN_UIDS allow-list.
-   * This is a UX-only gate; Firestore rules enforce the real access control.
-   */
   isAdmin: boolean;
-  /** True while Firebase is still resolving the persisted auth session on mount. */
   loading: boolean;
-  /**
-   * Signs in with email and password.
-   * Throws a FirebaseError on bad credentials.
-   * Throws AdminNotAuthorizedError if the credentials are valid but the UID
-   * is not in NEXT_PUBLIC_ADMIN_UID — immediately signs the user back out.
-   */
   login: (email: string, password: string) => Promise<void>;
-  /** Signs the current user out. */
   logout: () => Promise<void>;
-  /** Sends a password-reset email. Does NOT reveal whether the address exists. */
   resetPassword: (email: string) => Promise<void>;
 }
 
@@ -83,41 +54,55 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // onAuthStateChanged returns an unsubscribe function — returning it from
-    // useEffect ensures the listener is cleaned up when the component unmounts.
     const unsubscribe = onAuthStateChanged(auth, (resolvedUser) => {
       setUser(resolvedUser);
+      if (resolvedUser && isUidAllowed(resolvedUser.uid)) {
+        setAdminCookie(resolvedUser.uid);
+      } else if (!resolvedUser) {
+        clearAdminCookie();
+      }
       setLoading(false);
     });
     return unsubscribe;
   }, []);
 
+  const isAdmin = !!user && isUidAllowed(user.uid);
+
   const value: AuthState = {
     user,
-    isAdmin: !!user && (ADMIN_UIDS.length === 0 || ADMIN_UIDS.includes(user.uid)),
+    isAdmin,
     loading,
-    /**
-     * Login flow:
-     *  1. Firebase signs the user in.
-     *  2. We immediately check if their UID is allowed.
-     *  3. If NOT allowed: sign them back out and throw AdminNotAuthorizedError.
-     *     The login page catches this and shows a clear error — no silent failures,
-     *     no race conditions, no useEffect timing issues.
-     *  4. If allowed: return normally. onAuthStateChanged will fire and set isAdmin=true,
-     *     which the login page's useEffect detects and redirects to /admin.
-     */
     login: async (email, password) => {
-      const credential = await signInWithEmailAndPassword(auth, email, password);
-      const uid = credential.user.uid;
-      const isAllowed = ADMIN_UIDS.length === 0 || ADMIN_UIDS.includes(uid);
-      if (!isAllowed) {
-        // Sign out immediately so no admin session persists.
-        await signOut(auth);
-        throw new AdminNotAuthorizedError(uid, credential.user.email ?? email);
+      try {
+        const loggedInUser = await loginWithEmailAndPassword(email, password);
+        // Synchronously update user state so isAdmin is immediately true before navigation
+        setUser(loggedInUser);
+        setLoading(false);
+
+        // Inform backend route controller to sync HTTP session cookie
+        await fetch("/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ uid: loggedInUser.uid, email: loggedInUser.email || email }),
+        }).catch((err) => console.warn("[Auth] API login sync warning:", err));
+      } catch (err: unknown) {
+        if (err instanceof Error && err.message.startsWith("UNAUTHORIZED_UID:")) {
+          const parts = err.message.split(":");
+          const uid = parts[1] || "";
+          const userEmail = parts[2] || email;
+          throw new AdminNotAuthorizedError(uid, userEmail);
+        }
+        throw err;
       }
     },
-    logout: () => signOut(auth),
-    resetPassword: (email) => sendPasswordResetEmail(auth, email),
+    logout: async () => {
+      setUser(null);
+      await logoutUser();
+      await fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
+    },
+    resetPassword: async (email) => {
+      await sendPasswordResetEmail(auth, email);
+    },
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -137,10 +122,6 @@ export function useAuth(): AuthState {
 // Error message helper
 // ---------------------------------------------------------------------------
 
-/**
- * Converts a Firebase error code into a human-readable, actionable message.
- * Falls back to a safe generic message for any unrecognised code.
- */
 export function authErrorMessage(code: string): string {
   switch (code) {
     case "auth/invalid-email":

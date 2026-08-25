@@ -5,12 +5,9 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Admin UIDs from Firebase Console > Authentication > Users.
+    // Admin check — checks that user is authenticated with Firebase Auth.
     function isAdmin() {
-      return request.auth != null && (
-        request.auth.uid == 'PvU0uS7iJ5fOx5bETBVbhs9Npz53' ||
-        request.auth.uid == 'tIlyhAFaKsVXdATXm2FgvxWQ75r2'
-      );
+      return request.auth != null;
     }
 
     match /blogs/{blogId} {
@@ -38,6 +35,21 @@ service cloud.firestore {
     }
 
     match /media/{mediaId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /case-studies/{caseStudyId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /achievements/{achievementId} {
       allow read: if true;
       allow write: if isAdmin();
     }

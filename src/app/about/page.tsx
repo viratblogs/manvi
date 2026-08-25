@@ -1,17 +1,30 @@
-import type { Metadata } from "next";
-import Image from "next/image";
+"use client";
+
+import { useEffect, useState } from "react";
+import { Award, ExternalLink, ShieldCheck } from "lucide-react";
 import { SiteShell } from "@/components/site/SiteShell";
 import { SectionLabel } from "@/components/site/SectionLabel";
 import { Reveal, Stagger, StaggerItem } from "@/components/site/Reveal";
+import { SafeImage } from "@/components/site/SafeImage";
 import { competencies, profile, timeline } from "@/lib/content";
-
-export const metadata: Metadata = {
-  title: "About",
-  description:
-    "MBA candidate in Hospital & Healthcare Management at Symbiosis International University, focused on healthcare operations, analytics, and strategy.",
-};
+import { getSiteSettings } from "@/lib/services/settings.service";
+import { getAchievements } from "@/lib/services/achievements.service";
+import type { Achievement } from "@/types";
 
 export default function AboutPage() {
+  const [profileImage, setProfileImage] = useState<string>("/m.png");
+  const [achievements, setAchievements] = useState<Achievement[]>([]);
+
+  useEffect(() => {
+    getSiteSettings()
+      .then((s) => { if (s.heroImageUrl) setProfileImage(s.heroImageUrl); })
+      .catch((e) => console.error(e));
+
+    getAchievements()
+      .then(setAchievements)
+      .catch((e) => console.error(e));
+  }, []);
+
   return (
     <SiteShell>
       <section className="py-section">
@@ -42,8 +55,9 @@ export default function AboutPage() {
 
           <div className="lg:col-span-5">
             <div className="relative aspect-[4/5] overflow-hidden rounded-2xl border border-line bg-surface-sub lg:sticky lg:top-28 dark:border-white/10">
-              <Image
-                src="/m.png"
+              <SafeImage
+                src={profileImage}
+                fallbackSrc="/m.png"
                 alt={profile.name}
                 fill
                 priority
@@ -55,7 +69,70 @@ export default function AboutPage() {
         </div>
       </section>
 
-      {/* Timeline — the index here is a real chronology, so numbering carries information. */}
+      {/* Certifications & Achievements Section */}
+      <section className="border-t border-line py-section dark:border-white/10">
+        <div className="shell">
+          <SectionLabel>Credentials</SectionLabel>
+          <h2 className="mb-4 font-display text-section font-semibold">Certifications &amp; Professional Recognition</h2>
+          <p className="mb-14 max-w-xl text-lg text-ink-muted leading-relaxed">
+            Rigorous certifications and academic credentials in hospital operations, healthcare analytics, and quality management.
+          </p>
+
+          <Stagger className="grid gap-6 sm:grid-cols-2">
+            {achievements.map((item) => (
+              <StaggerItem key={item.id}>
+                <div className="group relative flex flex-col justify-between rounded-xl border border-line bg-surface p-7 transition-all duration-300 hover:border-primary/50 hover:shadow-card dark:border-white/10 dark:bg-white/[0.02]">
+                  <div>
+                    <div className="flex items-center justify-between gap-4">
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+                        <ShieldCheck className="h-3.5 w-3.5" />
+                        {item.category}
+                      </span>
+                      <span className="font-mono text-xs text-ink-muted">{item.year}</span>
+                    </div>
+
+                    <h3 className="mt-5 font-display text-lg font-semibold leading-snug group-hover:text-primary transition-colors">
+                      {item.title}
+                    </h3>
+                    <p className="mt-1.5 text-xs font-medium text-ink-muted">{item.organisation}</p>
+
+                    {item.imageUrl && (
+                      <div className="relative mt-4 aspect-video w-full overflow-hidden rounded-lg border border-line bg-surface-sub dark:border-white/10">
+                        <SafeImage
+                          src={item.imageUrl}
+                          alt={item.title}
+                          fill
+                          sizes="(max-width: 768px) 100vw, 400px"
+                          className="object-cover"
+                        />
+                      </div>
+                    )}
+
+                    {item.description && (
+                      <p className="mt-4 text-sm leading-relaxed text-ink-muted">{item.description}</p>
+                    )}
+                  </div>
+
+                  {item.credentialUrl && (
+                    <div className="mt-6 pt-4 border-t border-line dark:border-white/10">
+                      <a
+                        href={item.credentialUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
+                      >
+                        Verify Credential <ExternalLink className="h-3 w-3" />
+                      </a>
+                    </div>
+                  )}
+                </div>
+              </StaggerItem>
+            ))}
+          </Stagger>
+        </div>
+      </section>
+
+      {/* Timeline */}
       <section className="border-t border-line py-section dark:border-white/10">
         <div className="shell">
           <SectionLabel>Journey</SectionLabel>
@@ -86,6 +163,7 @@ export default function AboutPage() {
         </div>
       </section>
 
+      {/* Core Competencies */}
       <section className="border-t border-line bg-surface-sub py-section dark:border-white/10 dark:bg-white/[0.02]">
         <div className="shell">
           <SectionLabel>Capability</SectionLabel>

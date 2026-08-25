@@ -16,6 +16,8 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import {
+  Award,
+  Briefcase,
   FileText,
   Image as ImageIcon,
   LayoutDashboard,
@@ -23,6 +25,7 @@ import {
   LogOut,
   Mail,
   Menu,
+  User,
   X,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -43,10 +46,13 @@ interface NavLink {
 }
 
 const NAV_LINKS: NavLink[] = [
-  { href: "/admin",        label: "Dashboard", icon: LayoutDashboard, exact: true },
-  { href: "/admin/blogs",  label: "Blogs",     icon: FileText },
-  { href: "/admin/media",  label: "Media",     icon: ImageIcon },
-  { href: "/admin/leads",  label: "Leads",     icon: Mail },
+  { href: "/admin",             label: "Dashboard",       icon: LayoutDashboard, exact: true },
+  { href: "/admin/settings",    label: "Profile Settings",icon: User },
+  { href: "/admin/achievements",label: "Certifications",  icon: Award },
+  { href: "/admin/case-studies",label: "Case Studies",    icon: Briefcase },
+  { href: "/admin/blogs",       label: "Blogs",           icon: FileText },
+  { href: "/admin/media",       label: "Media",           icon: ImageIcon },
+  { href: "/admin/leads",       label: "Leads",           icon: Mail },
 ];
 
 // ---------------------------------------------------------------------------

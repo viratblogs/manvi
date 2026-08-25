@@ -1,13 +1,25 @@
 "use client";
 
-import Image from "next/image";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
-import { ArrowDown, ArrowRight, Download } from "lucide-react";
+import { ArrowRight, Download } from "lucide-react";
 import { profile } from "@/lib/content";
+import { getSiteSettings } from "@/lib/services/settings.service";
+import { SafeImage } from "@/components/site/SafeImage";
 
 export function Hero() {
   const reduce = useReducedMotion();
+  const [heroImage, setHeroImage] = useState<string>("/m.png");
+
+  useEffect(() => {
+    getSiteSettings()
+      .then((s) => {
+        if (s.heroImageUrl) setHeroImage(s.heroImageUrl);
+      })
+      .catch((err) => console.error("Hero settings load error:", err));
+  }, []);
+
   const rise = (delay: number) =>
     reduce
       ? {}
@@ -65,8 +77,9 @@ export function Hero() {
         >
           <div className="relative mx-auto max-w-md">
             <div className="relative aspect-[4/5] overflow-hidden rounded-2xl border border-line bg-surface-sub dark:border-white/10">
-              <Image
-                src="/m.png"
+              <SafeImage
+                src={heroImage}
+                fallbackSrc="/m.png"
                 alt={`${profile.name}, ${profile.role}`}
                 fill
                 priority
@@ -81,13 +94,6 @@ export function Hero() {
             </div>
           </div>
         </motion.div>
-      </div>
-
-      <div className="shell hidden pb-10 lg:block">
-        {/* <div className="flex items-center gap-3 font-mono text-[0.625rem] uppercase tracking-[0.16em] text-ink-faint">
-          <ArrowDown className="h-3.5 w-3.5 animate-bounce" aria-hidden />
-          Scroll
-        </div> */}
       </div>
     </section>
   );

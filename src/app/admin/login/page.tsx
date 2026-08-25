@@ -1,29 +1,7 @@
-/**
- * Admin Login Page
- *
- * Two modes: "login" (default) and "reset" (password reset email).
- *
- * Auth flow (login mode):
- *  1. User submits credentials → onSubmit calls login().
- *  2. login() (in auth.tsx) calls Firebase signInWithEmailAndPassword.
- *  3a. If the credentials are wrong → FirebaseError is thrown → error banner shown.
- *  3b. If credentials are valid but UID is not in ADMIN_UIDS →
- *      login() signs the user back out and throws AdminNotAuthorizedError →
- *      error banner shown with the user's UID for easy debugging.
- *  3c. If credentials are valid AND UID is in ADMIN_UIDS → login() returns.
- *      onAuthStateChanged fires → AuthProvider sets isAdmin=true →
- *      the useEffect below detects this and redirects to /admin.
- *
- * Why the redirect is in a useEffect (not in onSubmit):
- *  Calling router.replace immediately after await login() races against the async
- *  onAuthStateChanged propagation. AdminShell renders before isAdmin is true →
- *  its guard redirects back to login. The useEffect waits for auth state to settle.
- */
-
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { FirebaseError } from "firebase/app";
 import { Loader2 } from "lucide-react";
@@ -33,9 +11,10 @@ import { profile } from "@/lib/content";
 
 type PageMode = "login" | "reset";
 
-export default function LoginPage() {
+function LoginFormContent() {
   const { login, resetPassword, isAdmin, loading } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -44,21 +23,27 @@ export default function LoginPage() {
   const [busy, setBusy] = useState(false);
   const [mode, setMode] = useState<PageMode>("login");
 
-  // ---------------------------------------------------------------------------
-  // Redirect once auth resolves and the user IS an admin.
-  // This is the ONLY place that navigates to /admin — driven by auth state,
-  // not by the submit handler, to avoid the race condition described above.
-  // ---------------------------------------------------------------------------
+  // Read URL query parameters for redirected error messages
+  useEffect(() => {
+    const errType = searchParams.get("error");
+    const uid = searchParams.get("uid");
+    const userEmail = searchParams.get("email");
+
+    if (errType === "unauthorized" && uid) {
+      setError(
+        `Access denied — ${userEmail || "Your account"} (UID: "${uid}") is not in the admin allow-list. ` +
+        `Add this UID to NEXT_PUBLIC_ADMIN_UID in your environment configuration to grant access.`
+      );
+    }
+  }, [searchParams]);
+
+  // Redirect once auth settles and the user IS an admin
   useEffect(() => {
     if (!loading && isAdmin) {
       router.replace("/admin");
     }
   }, [loading, isAdmin, router]);
 
-  // ---------------------------------------------------------------------------
-  // Loading skeleton — shown while Firebase resolves the persisted session.
-  // Prevents a flash of the login form before we know whether to redirect.
-  // ---------------------------------------------------------------------------
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-surface-sub dark:bg-[#0B0F16]">
@@ -67,13 +52,8 @@ export default function LoginPage() {
     );
   }
 
-  // If already signed in as admin (e.g. navigated back to /admin/login), return
-  // null to prevent flashing the form while the useEffect redirect fires.
   if (isAdmin) return null;
 
-  // ---------------------------------------------------------------------------
-  // Form submission
-  // ---------------------------------------------------------------------------
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
@@ -85,25 +65,23 @@ export default function LoginPage() {
         await resetPassword(email);
         setNotice("If an account exists for that address, a reset link is on its way.");
       } else {
-        // login() handles three cases internally:
-        //  - Wrong credentials → throws FirebaseError (caught below)
-        //  - Valid credentials, UID not in allow-list → throws AdminNotAuthorizedError (caught below)
-        //  - Valid credentials, UID allowed → returns. useEffect above handles redirect.
         await login(email, password);
+        // Direct replace on successful login
+        router.replace("/admin");
       }
-    } catch (err) {
+    } catch (err: unknown) {
       if (err instanceof AdminNotAuthorizedError) {
-        // Firebase accepted the password, but this account is not an admin.
-        // login() has already signed them out. Show an actionable error with their UID.
         setError(
           `Access denied — ${err.email} is not on the admin allow-list. ` +
           `Add UID "${err.uid}" to NEXT_PUBLIC_ADMIN_UID in .env.local (local) ` +
-          `or in your Vercel project's Environment Variables (production), then redeploy.`
+          `or in your deployment environment variables, then restart/redeploy.`
         );
+      } else if (err instanceof FirebaseError) {
+        setError(authErrorMessage(err.code));
+      } else if (err instanceof Error) {
+        setError(err.message || "Sign-in failed. Check credentials and try again.");
       } else {
-        // Wrong password, no account, network error, etc.
-        const code = err instanceof FirebaseError ? err.code : "";
-        setError(authErrorMessage(code));
+        setError("An unexpected authentication error occurred.");
       }
     } finally {
       setBusy(false);
@@ -116,9 +94,6 @@ export default function LoginPage() {
     setNotice("");
   }
 
-  // ---------------------------------------------------------------------------
-  // Render
-  // ---------------------------------------------------------------------------
   return (
     <div className="flex min-h-screen items-center justify-center bg-surface-sub px-6 dark:bg-[#0B0F16]">
       <div className="w-full max-w-sm">
@@ -140,7 +115,7 @@ export default function LoginPage() {
               : "This dashboard is restricted to the site owner."}
           </p>
 
-          {/* Firebase not yet configured */}
+          {/* Firebase configuration warning */}
           {!isFirebaseConfigured && (
             <p className="mt-5 rounded-lg border border-amber-300 bg-amber-50 px-3.5 py-2.5 text-sm text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
               Firebase isn&rsquo;t configured yet. Copy <code>.env.local.example</code> to{" "}
@@ -220,5 +195,19 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-surface-sub dark:bg-[#0B0F16]">
+          <Loader2 className="h-6 w-6 animate-spin text-ink-muted" />
+        </div>
+      }
+    >
+      <LoginFormContent />
+    </Suspense>
   );
 }
