@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { SectionLabel } from "@/components/site/SectionLabel";
-import { Stagger, StaggerItem } from "@/components/site/Reveal";
 import { getSiteSettings, DEFAULT_SETTINGS, DEFAULT_COMPETENCIES_GROUPS } from "@/lib/services/settings.service";
 import { Tag } from "lucide-react";
 import type { CompetencyGroup } from "@/types";
@@ -12,9 +11,11 @@ export function CoreCompetencies() {
   const [groups, setGroups] = useState<CompetencyGroup[]>(DEFAULT_COMPETENCIES_GROUPS);
 
   useEffect(() => {
+    let isMounted = true;
     const fetchSettings = () => {
       getSiteSettings()
         .then((s) => {
+          if (!isMounted) return;
           if (s.skills && s.skills.length > 0) {
             setSkills(s.skills);
           }
@@ -30,6 +31,7 @@ export function CoreCompetencies() {
     window.addEventListener("focus", fetchSettings);
     window.addEventListener("visibilitychange", fetchSettings);
     return () => {
+      isMounted = false;
       window.removeEventListener("focus", fetchSettings);
       window.removeEventListener("visibilitychange", fetchSettings);
     };
@@ -48,16 +50,17 @@ export function CoreCompetencies() {
         {skills.length > 0 && (
           <div className="mb-12">
             <div className="measure mb-4">Key Skills</div>
-            <Stagger className="flex flex-wrap gap-2.5 sm:gap-3">
+            <div className="flex flex-wrap gap-2.5 sm:gap-3">
               {skills.map((skill) => (
-                <StaggerItem key={skill}>
-                  <span className="inline-flex items-center gap-2 rounded-xl border border-line bg-surface px-4 py-2.5 text-sm font-medium text-ink shadow-xs transition-all duration-300 hover:border-primary/40 hover:bg-primary/5 hover:shadow-card dark:border-white/10 dark:bg-[#0B0F16] dark:text-white dark:hover:border-white/20">
-                    <Tag className="h-3.5 w-3.5 text-primary shrink-0 dark:text-[#7FB3E0]" />
-                    {skill}
-                  </span>
-                </StaggerItem>
+                <span
+                  key={skill}
+                  className="inline-flex items-center gap-2 rounded-xl border border-line bg-surface px-4 py-2.5 text-sm font-medium text-ink shadow-xs transition-all duration-300 hover:border-primary/40 hover:bg-primary/5 hover:shadow-card dark:border-white/10 dark:bg-[#0B0F16] dark:text-white dark:hover:border-white/20"
+                >
+                  <Tag className="h-3.5 w-3.5 text-primary shrink-0 dark:text-[#7FB3E0]" />
+                  {skill}
+                </span>
               ))}
-            </Stagger>
+            </div>
           </div>
         )}
 
@@ -65,9 +68,9 @@ export function CoreCompetencies() {
         {groups.length > 0 && (
           <div className="pt-8 border-t border-line/50 dark:border-white/10">
             <div className="measure mb-6">Functional Breakdown</div>
-            <Stagger className="grid gap-10 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-3">
               {groups.map((group) => (
-                <StaggerItem key={group.group}>
+                <div key={group.group}>
                   <div className="measure mb-5">{group.group}</div>
                   <div className="flex flex-wrap gap-2">
                     {group.items.map((item) => (
@@ -76,9 +79,9 @@ export function CoreCompetencies() {
                       </span>
                     ))}
                   </div>
-                </StaggerItem>
+                </div>
               ))}
-            </Stagger>
+            </div>
           </div>
         )}
       </div>
