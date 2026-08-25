@@ -163,17 +163,30 @@ export default function AboutPage() {
               />
               {journeyBlocks.map((block, idx) => {
                 const lines = block.split("\n").map((l) => l.trim()).filter(Boolean);
-                const headerLine = lines[0] || "";
-                const bodyLines = lines.slice(1);
+                if (lines.length === 0) return null;
 
-                const headerParts = headerLine.includes("|")
-                  ? headerLine.split("|")
-                  : [headerLine];
+                let period = `0${idx + 1}`;
+                let title = lines[0];
+                let org = "";
+                let description = "";
 
-                const period = headerParts.length > 1 ? headerParts[0].trim() : `Milestone ${idx + 1}`;
-                const title = headerParts.length > 1 ? headerParts.slice(1).join("|").trim() : headerLine;
-                const orgLine = bodyLines.length > 0 && !bodyLines[0].includes(" ") ? bodyLines[0] : "";
-                const descriptionText = orgLine ? bodyLines.slice(1).join(" ") : bodyLines.join(" ");
+                if (lines[0].includes("|")) {
+                  const parts = lines[0].split("|");
+                  period = parts[0].trim();
+                  title = parts.slice(1).join("|").trim();
+                  if (lines.length > 1) {
+                    org = lines[1];
+                    description = lines.slice(2).join(" ");
+                  }
+                } else if (/^\d{4}/.test(lines[0])) {
+                  period = lines[0];
+                  title = lines.length > 1 ? lines[1] : lines[0];
+                  org = lines.length > 2 ? lines[2] : "";
+                  description = lines.slice(lines.length > 2 ? 3 : 2).join(" ");
+                } else {
+                  title = lines[0];
+                  description = lines.slice(1).join(" ");
+                }
 
                 return (
                   <StaggerItem key={`journey-${idx}`} className="relative grid gap-4 pb-14 last:pb-0 md:grid-cols-[168px_1fr] md:gap-12">
@@ -186,10 +199,12 @@ export default function AboutPage() {
                         className="absolute left-[-4.5px] top-2 hidden h-[9px] w-[9px] rounded-full border-2 border-primary bg-surface md:block dark:bg-[#0B0F16]"
                       />
                       <h3 className="font-display text-card font-semibold">{title}</h3>
-                      {orgLine && <div className="mt-1.5 text-sm text-primary dark:text-[#7FB3E0]">{orgLine}</div>}
-                      <p className="mt-4 max-w-2xl text-[1.0625rem] leading-relaxed text-ink-muted">
-                        {descriptionText || bodyLines.join(" ")}
-                      </p>
+                      {org && <div className="mt-1.5 text-sm text-primary dark:text-[#7FB3E0]">{org}</div>}
+                      {description && (
+                        <p className="mt-4 max-w-2xl text-[1.0625rem] leading-relaxed text-ink-muted">
+                          {description}
+                        </p>
+                      )}
                     </div>
                   </StaggerItem>
                 );

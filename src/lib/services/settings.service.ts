@@ -30,7 +30,13 @@ Specialising in hospital operations, healthcare quality systems, health informat
 export async function getSiteSettings(): Promise<SiteSettings> {
   try {
     const origin = typeof window !== "undefined" ? "" : (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000");
-    const res = await fetch(`${origin}/api/settings`, { cache: "no-store" });
+    const res = await fetch(`${origin}/api/settings?t=${Date.now()}`, {
+      cache: "no-store",
+      headers: {
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        "Pragma": "no-cache",
+      },
+    });
     if (res.ok) {
       const json = await res.json();
       if (json.settings) return json.settings;
