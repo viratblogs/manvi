@@ -1,3 +1,5 @@
+import { doc, getDoc, setDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import type { SiteSettings, CompetencyGroup } from "@/types";
 
 export const DEFAULT_COMPETENCIES_GROUPS: CompetencyGroup[] = [
@@ -38,6 +40,21 @@ Specialising in hospital operations, healthcare quality systems, health informat
 };
 
 export async function getSiteSettings(): Promise<SiteSettings> {
+  // 1. Try direct Firestore read first (live production persistence)
+  try {
+    const snap = await getDoc(doc(db, "settings", "site"));
+    if (snap.exists()) {
+      const data = snap.data() as Partial<SiteSettings>;
+      return {
+        ...DEFAULT_SETTINGS,
+        ...data,
+      };
+    }
+  } catch (err) {
+    console.warn("[SettingsService] Direct Firestore read error:", err);
+  }
+
+  // 2. Fallback to API route for local environment
   try {
     const origin = typeof window !== "undefined" ? "" : (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000");
     const res = await fetch(`${origin}/api/settings?t=${Date.now()}`, {
@@ -54,19 +71,36 @@ export async function getSiteSettings(): Promise<SiteSettings> {
   } catch (err) {
     console.warn("[SettingsService] API get error:", err);
   }
+
   return DEFAULT_SETTINGS;
 }
 
 export async function updateSiteSettings(patch: Partial<SiteSettings>): Promise<SiteSettings> {
-  const origin = typeof window !== "undefined" ? "" : (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000");
-  const res = await fetch(`${origin}/api/settings`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(patch),
-  });
-  const json = await res.json();
-  if (!res.ok || json.error) {
-    throw new Error(json.error || "Failed to update profile settings.");
+  const current = await getSiteSettings();
+  const updatedSettings: SiteSettings = {
+    ...current,
+    ...patch,
+    updatedAt: Date.now(),
+  };
+
+  // 1. Write directly to Firestore from the client (authenticated Firebase user session)
+  try {
+    await setDoc(doc(db, "settings", "site"), updatedSettings, { merge: true });
+  } catch (err) {
+    console.warn("[SettingsService] Direct Firestore write warning:", err);
   }
-  return json.settings || { ...DEFAULT_SETTINGS, ...patch, updatedAt: Date.now() };
+
+  // 2. Sync to API route for local store.json persistence
+  try {
+    const origin = typeof window !== "undefined" ? "" : (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000");
+    await fetch(`${origin}/api/settings`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updatedSettings),
+    });
+  } catch (err) {
+    console.warn("[SettingsService] API PUT sync warning:", err);
+  }
+
+  return updatedSettings;
 }
