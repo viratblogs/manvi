@@ -2,13 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, CheckCircle2, ImageIcon, Loader2, Plus, Save, Trash2, Upload, Sparkles, Tag, Milestone, User } from "lucide-react";
+import { AlertCircle, CheckCircle2, ImageIcon, Loader2, Plus, Save, Trash2, Upload, Sparkles, Tag, Milestone, User, FolderPlus } from "lucide-react";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { MediaPickerModal } from "@/components/admin/MediaPickerModal";
-import { getSiteSettings, updateSiteSettings, DEFAULT_SETTINGS } from "@/lib/services/settings.service";
+import { getSiteSettings, updateSiteSettings, DEFAULT_SETTINGS, DEFAULT_COMPETENCIES_GROUPS } from "@/lib/services/settings.service";
 import { uploadMediaFile } from "@/lib/services/media.service";
 import { SafeImage } from "@/components/site/SafeImage";
-import type { SiteSettings } from "@/types";
+import type { SiteSettings, CompetencyGroup } from "@/types";
 
 export default function ProfileSettingsPage() {
   const router = useRouter();
@@ -21,6 +21,8 @@ export default function ProfileSettingsPage() {
 
   // Core Competencies tag generator local input state
   const [newSkillInput, setNewSkillInput] = useState("");
+  // Subcategory skill inputs
+  const [groupSkillInputs, setGroupSkillInputs] = useState<Record<string, string>>({});
 
   // Profile Picture File Upload State
   const [uploadFile, setUploadFile] = useState<File | null>(null);
@@ -33,6 +35,7 @@ export default function ProfileSettingsPage() {
           ...DEFAULT_SETTINGS,
           ...data,
           skills: data.skills && data.skills.length > 0 ? data.skills : DEFAULT_SETTINGS.skills,
+          competenciesGroups: data.competenciesGroups && data.competenciesGroups.length > 0 ? data.competenciesGroups : DEFAULT_COMPETENCIES_GROUPS,
           bioStatement: data.bioStatement || DEFAULT_SETTINGS.bioStatement,
           professionalJourney: data.professionalJourney || DEFAULT_SETTINGS.professionalJourney,
         });
@@ -58,7 +61,7 @@ export default function ProfileSettingsPage() {
       if (settings) {
         setSettings({ ...settings, heroImageUrl: asset.url });
       }
-      setSuccess("Image uploaded successfully! Click 'Save All Changes' below to apply.");
+      setSuccess("Image uploaded successfully! Click 'Save All Sections' below to apply.");
     } catch (err: unknown) {
       console.error("Profile picture upload failed:", err);
       const msg = err instanceof Error ? err.message : "Failed to upload image.";
@@ -68,7 +71,7 @@ export default function ProfileSettingsPage() {
     }
   }
 
-  // Tag Generator Functions (Task 2)
+  // Key Skills Tag Generator Functions (Top Level)
   async function handleAddSkill() {
     const trimmed = newSkillInput.trim();
     if (!trimmed || !settings) return;
@@ -86,12 +89,7 @@ export default function ProfileSettingsPage() {
     setNewSkillInput("");
 
     try {
-      const updated = await updateSiteSettings({
-        heroImageUrl: newSettings.heroImageUrl,
-        bioStatement: newSettings.bioStatement,
-        skills: newSettings.skills,
-        professionalJourney: newSettings.professionalJourney,
-      });
+      const updated = await updateSiteSettings(newSettings);
       setSettings((prev) => ({ ...prev, ...updated }));
       router.refresh();
       setSuccess(`Added skill "${trimmed}" and updated website live!`);
@@ -111,17 +109,69 @@ export default function ProfileSettingsPage() {
     setSettings(newSettings);
 
     try {
-      const updated = await updateSiteSettings({
-        heroImageUrl: newSettings.heroImageUrl,
-        bioStatement: newSettings.bioStatement,
-        skills: newSettings.skills,
-        professionalJourney: newSettings.professionalJourney,
-      });
+      const updated = await updateSiteSettings(newSettings);
       setSettings((prev) => ({ ...prev, ...updated }));
       router.refresh();
       setSuccess(`Removed skill "${skillToRemove}" and updated website live!`);
     } catch (err) {
       console.error("Auto-save remove skill error:", err);
+    }
+  }
+
+  // Subcategory Skill Badges Functions (Strategy, Operations, Analytics, Technology, Quality & Risk, Change)
+  async function handleAddGroupSkill(groupName: string) {
+    const inputVal = (groupSkillInputs[groupName] || "").trim();
+    if (!inputVal || !settings) return;
+
+    const currentGroups: CompetencyGroup[] = settings.competenciesGroups && settings.competenciesGroups.length > 0
+      ? JSON.parse(JSON.stringify(settings.competenciesGroups))
+      : JSON.parse(JSON.stringify(DEFAULT_COMPETENCIES_GROUPS));
+
+    const groupIdx = currentGroups.findIndex((g) => g.group.toLowerCase() === groupName.toLowerCase());
+    if (groupIdx !== -1) {
+      if (!currentGroups[groupIdx].items.includes(inputVal)) {
+        currentGroups[groupIdx].items.push(inputVal);
+      }
+    } else {
+      currentGroups.push({ group: groupName, items: [inputVal] });
+    }
+
+    const newSettings = { ...settings, competenciesGroups: currentGroups };
+    setSettings(newSettings);
+    setGroupSkillInputs((prev) => ({ ...prev, [groupName]: "" }));
+
+    try {
+      const updated = await updateSiteSettings(newSettings);
+      setSettings((prev) => ({ ...prev, ...updated }));
+      router.refresh();
+      setSuccess(`Added "${inputVal}" to ${groupName} and updated website live!`);
+    } catch (err) {
+      console.error("Auto-save group skill error:", err);
+    }
+  }
+
+  async function handleRemoveGroupSkill(groupName: string, itemToRemove: string) {
+    if (!settings) return;
+
+    const currentGroups: CompetencyGroup[] = settings.competenciesGroups && settings.competenciesGroups.length > 0
+      ? JSON.parse(JSON.stringify(settings.competenciesGroups))
+      : JSON.parse(JSON.stringify(DEFAULT_COMPETENCIES_GROUPS));
+
+    const groupIdx = currentGroups.findIndex((g) => g.group.toLowerCase() === groupName.toLowerCase());
+    if (groupIdx !== -1) {
+      currentGroups[groupIdx].items = currentGroups[groupIdx].items.filter((item) => item !== itemToRemove);
+    }
+
+    const newSettings = { ...settings, competenciesGroups: currentGroups };
+    setSettings(newSettings);
+
+    try {
+      const updated = await updateSiteSettings(newSettings);
+      setSettings((prev) => ({ ...prev, ...updated }));
+      router.refresh();
+      setSuccess(`Removed "${itemToRemove}" from ${groupName} and updated website live!`);
+    } catch (err) {
+      console.error("Auto-save remove group skill error:", err);
     }
   }
 
@@ -138,6 +188,7 @@ export default function ProfileSettingsPage() {
         heroImageUrl: settings.heroImageUrl,
         bioStatement: settings.bioStatement,
         skills: settings.skills,
+        competenciesGroups: settings.competenciesGroups,
         professionalJourney: settings.professionalJourney,
       });
       setSettings((prev) => ({ ...prev, ...updated }));
@@ -152,13 +203,18 @@ export default function ProfileSettingsPage() {
     }
   }
 
+  // Active Subcategories list
+  const activeCompetenciesGroups = settings?.competenciesGroups && settings.competenciesGroups.length > 0
+    ? settings.competenciesGroups
+    : DEFAULT_COMPETENCIES_GROUPS;
+
   return (
     <AdminShell>
       <div className="max-w-4xl pb-16">
         <div>
           <h1 className="font-display text-2xl font-semibold">Site Content &amp; Profile Settings</h1>
           <p className="mt-1.5 text-sm text-ink-muted">
-            Manage your Executive Snapshot bio statement, Core Competencies skill tags, Professional Journey, and homepage profile photo.
+            Manage your Executive Snapshot bio statement, Core Competencies subcategories, Professional Journey, and homepage profile photo.
           </p>
         </div>
 
@@ -212,7 +268,7 @@ export default function ProfileSettingsPage() {
               </div>
             </div>
 
-            {/* TASK 2: Core Competencies */}
+            {/* TASK 2: Core Competencies (Key Skills + 6 Subcategories) */}
             <div className="card">
               <div className="flex items-center gap-3 border-b border-line pb-4 mb-6 dark:border-white/10">
                 <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -220,15 +276,14 @@ export default function ProfileSettingsPage() {
                 </div>
                 <div>
                   <h2 className="font-display text-lg font-semibold">Task 2: Core Competencies</h2>
-                  <p className="text-xs text-ink-muted">Dynamic tag generator to add, edit, and delete individual professional skill tags.</p>
+                  <p className="text-xs text-ink-muted">Manage Key Skills badges and individual subcategories (Strategy, Operations, Analytics, Technology, Quality &amp; Risk, Change).</p>
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-ink-muted mb-2">
-                  Add New Skill Tag
-                </label>
-                <div className="flex gap-3 mb-5">
+              {/* 1. Top Level Key Skills */}
+              <div className="mb-8 border-b border-line pb-8 dark:border-white/10">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-primary mb-3">Top-Level Key Skills</h3>
+                <div className="flex gap-3 mb-4">
                   <input
                     type="text"
                     value={newSkillInput}
@@ -239,7 +294,7 @@ export default function ProfileSettingsPage() {
                         handleAddSkill();
                       }
                     }}
-                    placeholder="e.g., Hospital Operations, Agile Management, Market Research..."
+                    placeholder="Add top-level skill tag (e.g., Hospital Operations, Agile Management)..."
                     className="field flex-1"
                   />
                   <button
@@ -251,9 +306,6 @@ export default function ProfileSettingsPage() {
                   </button>
                 </div>
 
-                <label className="block text-xs font-semibold uppercase tracking-wider text-ink-muted mb-3">
-                  Current Skills ({settings?.skills?.length || 0})
-                </label>
                 <div className="flex flex-wrap gap-2.5 rounded-xl border border-line p-4 bg-surface-sub/50 dark:border-white/10">
                   {settings?.skills && settings.skills.length > 0 ? (
                     settings.skills.map((skill) => (
@@ -273,8 +325,74 @@ export default function ProfileSettingsPage() {
                       </span>
                     ))
                   ) : (
-                    <span className="text-xs text-ink-muted italic">No skill tags added yet. Use the input above to add your skills.</span>
+                    <span className="text-xs text-ink-muted italic">No top-level skill tags added yet.</span>
                   )}
+                </div>
+              </div>
+
+              {/* 2. Grouped Subcategories Editor */}
+              <div>
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-primary mb-5 flex items-center gap-2">
+                  <FolderPlus className="h-4 w-4" /> Competency Subcategories Manager
+                </h3>
+
+                <div className="grid gap-6 sm:grid-cols-2">
+                  {activeCompetenciesGroups.map((group) => (
+                    <div key={group.group} className="rounded-xl border border-line p-4 bg-surface dark:border-white/10">
+                      <div className="flex justify-between items-center mb-3">
+                        <span className="font-display font-semibold text-sm uppercase tracking-wide text-ink dark:text-white">
+                          {group.group}
+                        </span>
+                        <span className="text-[0.625rem] font-mono text-ink-muted bg-surface-sub px-2 py-0.5 rounded-md">
+                          {group.items.length} skills
+                        </span>
+                      </div>
+
+                      {/* Input for this group */}
+                      <div className="flex gap-2 mb-3">
+                        <input
+                          type="text"
+                          value={groupSkillInputs[group.group] || ""}
+                          onChange={(e) => setGroupSkillInputs({ ...groupSkillInputs, [group.group]: e.target.value })}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              handleAddGroupSkill(group.group);
+                            }
+                          }}
+                          placeholder={`Add ${group.group} skill...`}
+                          className="field flex-1 text-xs py-1.5"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleAddGroupSkill(group.group)}
+                          className="btn-primary shrink-0 text-xs px-3 py-1.5"
+                        >
+                          Add
+                        </button>
+                      </div>
+
+                      {/* Items inside this group */}
+                      <div className="flex flex-wrap gap-1.5">
+                        {group.items.map((item) => (
+                          <span
+                            key={item}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface-sub px-2.5 py-1 text-xs text-ink dark:border-white/10 dark:text-white"
+                          >
+                            {item}
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveGroupSkill(group.group, item)}
+                              className="text-ink-muted hover:text-red-500 transition-colors"
+                              title={`Remove ${item}`}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>

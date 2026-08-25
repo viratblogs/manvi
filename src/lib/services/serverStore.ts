@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import type { SiteSettings, Achievement, FirestoreCaseStudy, MediaAsset } from "@/types";
+import type { SiteSettings, CompetencyGroup, Achievement, FirestoreCaseStudy, MediaAsset } from "@/types";
 
 interface StoreData {
   settings: SiteSettings;
@@ -11,6 +11,15 @@ interface StoreData {
 
 const DATA_DIR = path.join(process.cwd(), "src", "data");
 const STORE_FILE = path.join(DATA_DIR, "store.json");
+
+const DEFAULT_COMPETENCIES_GROUPS: CompetencyGroup[] = [
+  { group: "Strategy", items: ["Strategic planning", "Business transformation", "Stakeholder management", "Market research"] },
+  { group: "Operations", items: ["Hospital administration", "Clinical operations", "Capacity planning", "Process improvement"] },
+  { group: "Analytics", items: ["Healthcare analytics", "KPI management", "Performance dashboards", "Feasibility modelling"] },
+  { group: "Technology", items: ["EHR systems", "Digital health", "Health informatics", "Workflow automation"] },
+  { group: "Quality & risk", items: ["NABH standards", "Quality management", "Risk management", "Clinical audit"] },
+  { group: "Change", items: ["Organisational change", "Training design", "Adoption strategy", "Transformation roadmaps"] },
+];
 
 const DEFAULT_STORE: StoreData = {
   settings: {
@@ -26,6 +35,7 @@ const DEFAULT_STORE: StoreData = {
       "Capacity Planning",
       "NABH Quality Standards"
     ],
+    competenciesGroups: DEFAULT_COMPETENCIES_GROUPS,
     professionalJourney: `2021 – 2023 | Bachelor of Arts
 Jai Narain Vyas University, Jodhpur
 Built the analytical and research foundation — qualitative methods, structured writing, and rigorous evidence interrogation.

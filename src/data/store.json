@@ -10,12 +10,66 @@
       "Digital Health & EHR",
       "Process Improvement",
       "Capacity Planning",
-      "NABH Quality Standards",
-      "mba",
-      "abc"
+      "NABH Quality Standards"
+    ],
+    "competenciesGroups": [
+      {
+        "group": "Strategy",
+        "items": [
+          "Strategic planning",
+          "Business transformation",
+          "Stakeholder management",
+          "Market research"
+        ]
+      },
+      {
+        "group": "Operations",
+        "items": [
+          "Hospital administration",
+          "Clinical operations",
+          "Capacity planning",
+          "Process improvement"
+        ]
+      },
+      {
+        "group": "Analytics",
+        "items": [
+          "Healthcare analytics",
+          "KPI management",
+          "Performance dashboards",
+          "Feasibility modelling"
+        ]
+      },
+      {
+        "group": "Technology",
+        "items": [
+          "EHR systems",
+          "Digital health",
+          "Health informatics",
+          "Workflow automation"
+        ]
+      },
+      {
+        "group": "Quality & risk",
+        "items": [
+          "NABH standards",
+          "Quality management",
+          "Risk management",
+          "Clinical audit"
+        ]
+      },
+      {
+        "group": "Change",
+        "items": [
+          "Organisational change",
+          "Training design",
+          "Adoption strategy",
+          "Transformation roadmaps"
+        ]
+      }
     ],
     "professionalJourney": "2021 – 2023 | Bachelor of Arts\nJai Narain Vyas University, Jodhpur\nBuilt the analytical and research foundation — qualitative methods, structured writing, and rigorous evidence interrogation.\n\n2025 – 2027 | MBA — Hospital & Healthcare Management\nSymbiosis International University, Pune\nSpecialising in hospital operations, healthcare quality systems, health informatics, and strategy. 10+ applied projects across clinical workflows and market entry.",
-    "updatedAt": 1787676613439
+    "updatedAt": 1787677003196
   },
   "achievements": [
     {

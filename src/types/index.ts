@@ -23,6 +23,11 @@ export interface Achievement {
 // Site Settings
 // ---------------------------------------------------------------------------
 
+export interface CompetencyGroup {
+  group: string;
+  items: string[];
+}
+
 export interface SiteSettings {
   /** URL of the hero / profile photo shown on the homepage and About page. */
   heroImageUrl: string;
@@ -30,6 +35,8 @@ export interface SiteSettings {
   bioStatement?: string;
   /** Dynamic array of professional skill tags (Core Competencies). */
   skills?: string[];
+  /** Dynamic subcategories of skills (Strategy, Operations, Analytics, Technology, Quality & Risk, Change). */
+  competenciesGroups?: CompetencyGroup[];
   /** Chronological career narrative and milestones text (Professional Journey). */
   professionalJourney?: string;
   updatedAt: number;

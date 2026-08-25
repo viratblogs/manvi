@@ -7,7 +7,7 @@ import { SectionLabel } from "@/components/site/SectionLabel";
 import { Reveal, Stagger, StaggerItem } from "@/components/site/Reveal";
 import { SafeImage } from "@/components/site/SafeImage";
 import { competencies, profile, timeline as staticTimeline } from "@/lib/content";
-import { getSiteSettings, DEFAULT_SETTINGS } from "@/lib/services/settings.service";
+import { getSiteSettings, DEFAULT_SETTINGS, DEFAULT_COMPETENCIES_GROUPS } from "@/lib/services/settings.service";
 import { getAchievements } from "@/lib/services/achievements.service";
 import type { Achievement, SiteSettings } from "@/types";
 
@@ -275,11 +275,18 @@ export default function AboutPage() {
           <div className="pt-8 border-t border-line/50 dark:border-white/10">
             <div className="measure mb-6">Functional Breakdown</div>
             <Stagger className="grid gap-10 sm:grid-cols-2 lg:grid-cols-3">
-              {competencies.map((group) => (
+              {(siteSettings?.competenciesGroups && siteSettings.competenciesGroups.length > 0
+                ? siteSettings.competenciesGroups
+                : DEFAULT_COMPETENCIES_GROUPS
+              ).map((group) => (
                 <StaggerItem key={group.group}>
                   <div className="measure mb-5">{group.group}</div>
                   <div className="flex flex-wrap gap-2">
-                    {group.items.map((item) => <span key={item} className="pill">{item}</span>)}
+                    {group.items.map((item) => (
+                      <span key={item} className="pill">
+                        {item}
+                      </span>
+                    ))}
                   </div>
                 </StaggerItem>
               ))}
