@@ -2,6 +2,8 @@ import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { SiteSettings, CompetencyGroup } from "@/types";
 
+const LOCAL_STORAGE_KEY = "site_settings_cache_v1";
+
 export const DEFAULT_COMPETENCIES_GROUPS: CompetencyGroup[] = [
   { group: "Strategy", items: ["Strategic planning", "Business transformation", "Stakeholder management", "Market research"] },
   { group: "Operations", items: ["Hospital administration", "Clinical operations", "Capacity planning", "Process improvement"] },
@@ -39,16 +41,35 @@ Specialising in hospital operations, healthcare quality systems, health informat
   updatedAt: Date.now(),
 };
 
+function getLocalCache(): SiteSettings | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
+    if (raw) return JSON.parse(raw) as SiteSettings;
+  } catch {
+    // ignore
+  }
+  return null;
+}
+
+function saveLocalCache(settings: SiteSettings) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(settings));
+  } catch {
+    // ignore
+  }
+}
+
 export async function getSiteSettings(): Promise<SiteSettings> {
   // 1. Try direct Firestore read first (live production persistence)
   try {
     const snap = await getDoc(doc(db, "settings", "site"));
     if (snap.exists()) {
       const data = snap.data() as Partial<SiteSettings>;
-      return {
-        ...DEFAULT_SETTINGS,
-        ...data,
-      };
+      const merged = { ...DEFAULT_SETTINGS, ...data };
+      saveLocalCache(merged);
+      return merged;
     }
   } catch (err) {
     console.warn("[SettingsService] Direct Firestore read error:", err);
@@ -66,31 +87,41 @@ export async function getSiteSettings(): Promise<SiteSettings> {
     });
     if (res.ok) {
       const json = await res.json();
-      if (json.settings) return json.settings;
+      if (json.settings) {
+        saveLocalCache(json.settings);
+        return json.settings;
+      }
     }
   } catch (err) {
     console.warn("[SettingsService] API get error:", err);
   }
 
+  // 3. Fallback to browser localStorage cache if offline / uninitialized Firestore
+  const cached = getLocalCache();
+  if (cached) return cached;
+
   return DEFAULT_SETTINGS;
 }
 
 export async function updateSiteSettings(patch: Partial<SiteSettings>): Promise<SiteSettings> {
-  const current = await getSiteSettings();
+  const current = (await getSiteSettings()) || getLocalCache() || DEFAULT_SETTINGS;
   const updatedSettings: SiteSettings = {
     ...current,
     ...patch,
     updatedAt: Date.now(),
   };
 
-  // 1. Write directly to Firestore from the client (authenticated Firebase user session)
+  // 1. Save to browser localStorage cache immediately
+  saveLocalCache(updatedSettings);
+
+  // 2. Write directly to Firestore from the client (authenticated Firebase user session)
   try {
     await setDoc(doc(db, "settings", "site"), updatedSettings, { merge: true });
   } catch (err) {
     console.warn("[SettingsService] Direct Firestore write warning:", err);
   }
 
-  // 2. Sync to API route for local store.json persistence
+  // 3. Sync to API route for local store.json persistence
   try {
     const origin = typeof window !== "undefined" ? "" : (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000");
     await fetch(`${origin}/api/settings`, {
