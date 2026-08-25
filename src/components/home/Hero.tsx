@@ -11,11 +11,13 @@ import { SafeImage } from "@/components/site/SafeImage";
 export function Hero() {
   const reduce = useReducedMotion();
   const [heroImage, setHeroImage] = useState<string>("/m.png");
+  const [bioStatement, setBioStatement] = useState<string>("");
 
   useEffect(() => {
     getSiteSettings()
       .then((s) => {
         if (s.heroImageUrl) setHeroImage(s.heroImageUrl);
+        if (s.bioStatement) setBioStatement(s.bioStatement);
       })
       .catch((err) => console.error("Hero settings load error:", err));
   }, []);
@@ -30,17 +32,17 @@ export function Hero() {
       };
 
   return (
-    <section className="relative overflow-hidden">
-      {/* Ambient wash — kept below 4% opacity so it reads as paper, not gradient. */}
+    <section className="relative overflow-hidden pt-12 pb-16 lg:pt-20 lg:pb-28">
+      {/* Ambient wash */}
       <div
         aria-hidden
         className="pointer-events-none absolute -right-40 -top-40 h-[560px] w-[560px] rounded-full bg-primary/[0.045] blur-3xl"
       />
-      <div className="shell grid min-h-[calc(100vh-72px)] items-center gap-14 py-20 lg:grid-cols-12 lg:gap-20 lg:py-0">
+      <div className="shell grid items-center gap-12 lg:grid-cols-12 lg:gap-16">
         <div className="lg:col-span-7">
-          <motion.div {...rise(0)} className="measure mb-9">
+          <motion.div {...rise(0)} className="measure mb-6 sm:mb-9">
             <span className="measure-index">MBA-HHM</span>
-            <span>Symbiosis International University · 2025–2027</span>
+            <span className="text-xs sm:text-sm">Symbiosis International University · 2025–2027</span>
           </motion.div>
 
           <motion.h1 {...rise(0.08)} className="font-display text-hero font-semibold text-ink dark:text-white">
@@ -50,12 +52,12 @@ export function Hero() {
 
           <motion.p
             {...rise(0.16)}
-            className="mt-8 max-w-xl text-lg leading-relaxed text-ink-muted"
+            className="mt-6 sm:mt-8 max-w-xl text-base sm:text-lg leading-relaxed text-ink-muted"
           >
-            {profile.intro}
+            {bioStatement || profile.intro}
           </motion.p>
 
-          <motion.div {...rise(0.24)} className="mt-11 flex flex-wrap items-center gap-4">
+          <motion.div {...rise(0.24)} className="mt-8 sm:mt-11 flex flex-wrap items-center gap-4">
             <Link href="/case-studies" className="btn-primary group">
               View case studies
               <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
@@ -73,10 +75,10 @@ export function Hero() {
             animate: { opacity: 1, scale: 1 },
             transition: { duration: 0.7, delay: 0.2, ease: [0.22, 1, 0.36, 1] as const },
           })}
-          className="lg:col-span-5"
+          className="lg:col-span-5 pb-6 lg:pb-0"
         >
           <div className="relative mx-auto max-w-md">
-            <div className="relative aspect-[4/5] overflow-hidden rounded-2xl border border-line bg-surface-sub dark:border-white/10">
+            <div className="relative aspect-[4/5] w-full overflow-hidden rounded-2xl border border-line bg-surface-sub dark:border-white/10">
               <SafeImage
                 src={heroImage}
                 fallbackSrc="/m.png"
@@ -87,10 +89,10 @@ export function Hero() {
                 className="object-cover"
               />
             </div>
-            {/* Credential plate — a hairline-ruled caption, matching the measure system. */}
-            <div className="absolute -bottom-6 -left-4 rounded-xl border border-line bg-surface px-6 py-4 shadow-card dark:border-white/10 dark:bg-[#0F1520] sm:-left-8">
+            {/* Credential plate */}
+            <div className="absolute -bottom-6 left-2 sm:-left-6 rounded-xl border border-line bg-surface px-5 py-3.5 sm:px-6 sm:py-4 shadow-card dark:border-white/10 dark:bg-[#0F1520]">
               <div className="font-mono text-[0.625rem] uppercase tracking-[0.16em] text-ink-muted">Currently</div>
-              <div className="mt-1.5 font-display text-lg font-semibold">Healthcare Strategy &amp; Operations</div>
+              <div className="mt-1 font-display text-sm sm:text-lg font-semibold">Healthcare Strategy &amp; Operations</div>
             </div>
           </div>
         </motion.div>

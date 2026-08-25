@@ -1,29 +1,45 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Award, ExternalLink, ShieldCheck } from "lucide-react";
+import { ExternalLink, ShieldCheck } from "lucide-react";
 import { SiteShell } from "@/components/site/SiteShell";
 import { SectionLabel } from "@/components/site/SectionLabel";
 import { Reveal, Stagger, StaggerItem } from "@/components/site/Reveal";
 import { SafeImage } from "@/components/site/SafeImage";
-import { competencies, profile, timeline } from "@/lib/content";
-import { getSiteSettings } from "@/lib/services/settings.service";
+import { competencies, profile, timeline as staticTimeline } from "@/lib/content";
+import { getSiteSettings, DEFAULT_SETTINGS } from "@/lib/services/settings.service";
 import { getAchievements } from "@/lib/services/achievements.service";
-import type { Achievement } from "@/types";
+import type { Achievement, SiteSettings } from "@/types";
 
 export default function AboutPage() {
   const [profileImage, setProfileImage] = useState<string>("/m.png");
   const [achievements, setAchievements] = useState<Achievement[]>([]);
+  const [siteSettings, setSiteSettings] = useState<SiteSettings | null>(null);
 
   useEffect(() => {
     getSiteSettings()
-      .then((s) => { if (s.heroImageUrl) setProfileImage(s.heroImageUrl); })
+      .then((s) => {
+        setSiteSettings(s);
+        if (s.heroImageUrl) setProfileImage(s.heroImageUrl);
+      })
       .catch((e) => console.error(e));
 
     getAchievements()
       .then(setAchievements)
       .catch((e) => console.error(e));
   }, []);
+
+  // Helper to parse Professional Journey text into timeline blocks
+  const journeyContent = siteSettings?.professionalJourney || DEFAULT_SETTINGS.professionalJourney;
+  const journeyBlocks = (journeyContent || "")
+    .split(/\n\n+/)
+    .map((block) => block.trim())
+    .filter(Boolean);
+
+  // Dynamic Skill Tags for Core Competencies
+  const dynamicSkills = siteSettings?.skills && siteSettings.skills.length > 0
+    ? siteSettings.skills
+    : DEFAULT_SETTINGS.skills || [];
 
   return (
     <SiteShell>
@@ -34,6 +50,7 @@ export default function AboutPage() {
             <h1 className="font-display text-section font-semibold">
               I work on the gap between how a hospital is supposed to run and how it actually runs.
             </h1>
+
             <div className="mt-9 max-w-xl space-y-5 text-[1.0625rem] leading-relaxed text-ink-muted">
               <p>
                 I am an MBA candidate in Hospital &amp; Healthcare Management at Symbiosis International
@@ -132,43 +149,100 @@ export default function AboutPage() {
         </div>
       </section>
 
-      {/* Timeline */}
+      {/* Dynamic Professional Journey Section */}
       <section className="border-t border-line py-section dark:border-white/10">
         <div className="shell">
           <SectionLabel>Journey</SectionLabel>
           <h2 className="mb-14 font-display text-section font-semibold">Professional journey</h2>
 
-          <Stagger className="relative">
-            <div
-              aria-hidden
-              className="absolute left-0 top-2 hidden h-[calc(100%-1rem)] w-px bg-line md:left-[168px] md:block dark:bg-white/10"
-            />
-            {timeline.map((item) => (
-              <StaggerItem key={item.title} className="relative grid gap-4 pb-14 last:pb-0 md:grid-cols-[168px_1fr] md:gap-12">
-                <div className="font-mono text-xs uppercase tracking-[0.16em] text-ink-muted md:pt-1.5">
-                  {item.period}
-                </div>
-                <div className="relative md:pl-12">
-                  <span
-                    aria-hidden
-                    className="absolute left-[-4.5px] top-2 hidden h-[9px] w-[9px] rounded-full border-2 border-primary bg-surface md:block dark:bg-[#0B0F16]"
-                  />
-                  <h3 className="font-display text-card font-semibold">{item.title}</h3>
-                  <div className="mt-1.5 text-sm text-primary dark:text-[#7FB3E0]">{item.org}</div>
-                  <p className="mt-4 max-w-2xl text-[1.0625rem] leading-relaxed text-ink-muted">{item.body}</p>
-                </div>
-              </StaggerItem>
-            ))}
-          </Stagger>
+          {journeyBlocks.length > 0 ? (
+            <Stagger className="relative">
+              <div
+                aria-hidden
+                className="absolute left-0 top-2 hidden h-[calc(100%-1rem)] w-px bg-line md:left-[168px] md:block dark:bg-white/10"
+              />
+              {journeyBlocks.map((block, idx) => {
+                const lines = block.split("\n").map((l) => l.trim()).filter(Boolean);
+                const headerLine = lines[0] || "";
+                const bodyLines = lines.slice(1);
+
+                const headerParts = headerLine.includes("|")
+                  ? headerLine.split("|")
+                  : [headerLine];
+
+                const period = headerParts.length > 1 ? headerParts[0].trim() : `Milestone ${idx + 1}`;
+                const title = headerParts.length > 1 ? headerParts.slice(1).join("|").trim() : headerLine;
+                const orgLine = bodyLines.length > 0 && !bodyLines[0].includes(" ") ? bodyLines[0] : "";
+                const descriptionText = orgLine ? bodyLines.slice(1).join(" ") : bodyLines.join(" ");
+
+                return (
+                  <StaggerItem key={`journey-${idx}`} className="relative grid gap-4 pb-14 last:pb-0 md:grid-cols-[168px_1fr] md:gap-12">
+                    <div className="font-mono text-xs uppercase tracking-[0.16em] text-ink-muted md:pt-1.5">
+                      {period}
+                    </div>
+                    <div className="relative md:pl-12">
+                      <span
+                        aria-hidden
+                        className="absolute left-[-4.5px] top-2 hidden h-[9px] w-[9px] rounded-full border-2 border-primary bg-surface md:block dark:bg-[#0B0F16]"
+                      />
+                      <h3 className="font-display text-card font-semibold">{title}</h3>
+                      {orgLine && <div className="mt-1.5 text-sm text-primary dark:text-[#7FB3E0]">{orgLine}</div>}
+                      <p className="mt-4 max-w-2xl text-[1.0625rem] leading-relaxed text-ink-muted">
+                        {descriptionText || bodyLines.join(" ")}
+                      </p>
+                    </div>
+                  </StaggerItem>
+                );
+              })}
+            </Stagger>
+          ) : (
+            <Stagger className="relative">
+              <div
+                aria-hidden
+                className="absolute left-0 top-2 hidden h-[calc(100%-1rem)] w-px bg-line md:left-[168px] md:block dark:bg-white/10"
+              />
+              {staticTimeline.map((item) => (
+                <StaggerItem key={item.title} className="relative grid gap-4 pb-14 last:pb-0 md:grid-cols-[168px_1fr] md:gap-12">
+                  <div className="font-mono text-xs uppercase tracking-[0.16em] text-ink-muted md:pt-1.5">
+                    {item.period}
+                  </div>
+                  <div className="relative md:pl-12">
+                    <span
+                      aria-hidden
+                      className="absolute left-[-4.5px] top-2 hidden h-[9px] w-[9px] rounded-full border-2 border-primary bg-surface md:block dark:bg-[#0B0F16]"
+                    />
+                    <h3 className="font-display text-card font-semibold">{item.title}</h3>
+                    <div className="mt-1.5 text-sm text-primary dark:text-[#7FB3E0]">{item.org}</div>
+                    <p className="mt-4 max-w-2xl text-[1.0625rem] leading-relaxed text-ink-muted">{item.body}</p>
+                  </div>
+                </StaggerItem>
+              ))}
+            </Stagger>
+          )}
         </div>
       </section>
 
-      {/* Core Competencies */}
+      {/* Dynamic Core Competencies Section */}
       <section className="border-t border-line bg-surface-sub py-section dark:border-white/10 dark:bg-white/[0.02]">
         <div className="shell">
           <SectionLabel>Capability</SectionLabel>
           <h2 className="mb-14 font-display text-section font-semibold">Core competencies</h2>
 
+          {/* Dynamic Core Competency Pills */}
+          {dynamicSkills.length > 0 && (
+            <div className="mb-12">
+              <div className="measure mb-5">Key Skills</div>
+              <Stagger className="flex flex-wrap gap-2">
+                {dynamicSkills.map((skill) => (
+                  <StaggerItem key={skill}>
+                    <span className="pill">{skill}</span>
+                  </StaggerItem>
+                ))}
+              </Stagger>
+            </div>
+          )}
+
+          {/* Functional Breakdown Groups */}
           <Stagger className="grid gap-10 sm:grid-cols-2 lg:grid-cols-3">
             {competencies.map((group) => (
               <StaggerItem key={group.group}>

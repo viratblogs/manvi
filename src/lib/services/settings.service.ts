@@ -2,6 +2,28 @@ import type { SiteSettings } from "@/types";
 
 export const DEFAULT_SETTINGS: SiteSettings = {
   heroImageUrl: "/m.png",
+  bioStatement: "Bridging healthcare excellence, strategic leadership, and data-driven decision making to optimize patient care and hospital operations.",
+  skills: [
+    "Market Research",
+    "Agile Management",
+    "Hospital Operations",
+    "Healthcare Strategy",
+    "Digital Health & EHR",
+    "Process Improvement",
+    "Capacity Planning",
+    "NABH Quality Standards"
+  ],
+  professionalJourney: `2021 – 2023 | Bachelor of Arts
+Jai Narain Vyas University, Jodhpur
+Built the analytical and research foundation — qualitative methods, structured writing, and rigorous evidence interrogation.
+
+2023 – 2025 | Healthcare Strategy & Consulting Projects
+Independent & Applied Research
+Engaged in competitive landscape studies, primary interviews with clinical staff, and feasibility analysis for healthcare service lines.
+
+2025 – 2027 | MBA — Hospital & Healthcare Management
+Symbiosis International University, Pune
+Specialising in hospital operations, healthcare quality systems, health informatics, and strategy. 10+ applied projects across clinical workflows and market entry.`,
   updatedAt: Date.now(),
 };
 

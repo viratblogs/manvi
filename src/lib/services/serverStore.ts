@@ -15,6 +15,28 @@ const STORE_FILE = path.join(DATA_DIR, "store.json");
 const DEFAULT_STORE: StoreData = {
   settings: {
     heroImageUrl: "/m.png",
+    bioStatement: "Bridging healthcare excellence, strategic leadership, and data-driven decision making to optimize patient care and hospital operations.",
+    skills: [
+      "Market Research",
+      "Agile Management",
+      "Hospital Operations",
+      "Healthcare Strategy",
+      "Digital Health & EHR",
+      "Process Improvement",
+      "Capacity Planning",
+      "NABH Quality Standards"
+    ],
+    professionalJourney: `2021 – 2023 | Bachelor of Arts
+Jai Narain Vyas University, Jodhpur
+Built the analytical and research foundation — qualitative methods, structured writing, and rigorous evidence interrogation.
+
+2023 – 2025 | Healthcare Strategy & Consulting Projects
+Independent & Applied Research
+Engaged in competitive landscape studies, primary interviews with clinical staff, and feasibility analysis for healthcare service lines.
+
+2025 – 2027 | MBA — Hospital & Healthcare Management
+Symbiosis International University, Pune
+Specialising in hospital operations, healthcare quality systems, health informatics, and strategy. 10+ applied projects across clinical workflows and market entry.`,
     updatedAt: Date.now(),
   },
   achievements: [
@@ -59,7 +81,10 @@ function ensureStoreFile(): StoreData {
     const content = fs.readFileSync(STORE_FILE, "utf-8");
     const parsed = JSON.parse(content) as StoreData;
     return {
-      settings: parsed.settings || DEFAULT_STORE.settings,
+      settings: {
+        ...DEFAULT_STORE.settings,
+        ...(parsed.settings || {}),
+      },
       achievements: Array.isArray(parsed.achievements) ? parsed.achievements : DEFAULT_STORE.achievements,
       caseStudies: Array.isArray(parsed.caseStudies) ? parsed.caseStudies : DEFAULT_STORE.caseStudies,
       media: Array.isArray(parsed.media) ? parsed.media : DEFAULT_STORE.media,
