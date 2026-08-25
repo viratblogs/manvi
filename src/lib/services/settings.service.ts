@@ -43,7 +43,7 @@ export async function getSiteSettings(): Promise<SiteSettings> {
     const res = await fetch(`${origin}/api/settings?t=${Date.now()}`, {
       cache: "no-store",
       headers: {
-        "Cache-Control": "no-cache, no-store, must-revalidate",
+        "Cache-Control": "no-cache, no-store, must-revalidate, max-age=0",
         "Pragma": "no-cache",
       },
     });
