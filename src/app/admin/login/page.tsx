@@ -4,17 +4,20 @@
  * Two modes: "login" (default) and "reset" (password reset email).
  *
  * Auth flow (login mode):
- *  1. User submits credentials.
- *  2. `login()` calls Firebase signInWithEmailAndPassword.
- *  3. On success, Firebase fires onAuthStateChanged → AuthProvider updates
- *     isAdmin → the useEffect below detects isAdmin===true and redirects.
+ *  1. User submits credentials → onSubmit calls login().
+ *  2. login() (in auth.tsx) calls Firebase signInWithEmailAndPassword.
+ *  3a. If the credentials are wrong → FirebaseError is thrown → error banner shown.
+ *  3b. If credentials are valid but UID is not in ADMIN_UIDS →
+ *      login() signs the user back out and throws AdminNotAuthorizedError →
+ *      error banner shown with the user's UID for easy debugging.
+ *  3c. If credentials are valid AND UID is in ADMIN_UIDS → login() returns.
+ *      onAuthStateChanged fires → AuthProvider sets isAdmin=true →
+ *      the useEffect below detects this and redirects to /admin.
  *
- * IMPORTANT — Why we do NOT call router.replace("/admin") directly inside onSubmit:
+ * Why the redirect is in a useEffect (not in onSubmit):
  *  Calling router.replace immediately after await login() races against the async
- *  onAuthStateChanged propagation. When the browser navigates to /admin, AdminShell
- *  renders before isAdmin has been set to true, so its guard sees !isAdmin and
- *  redirects straight back to /admin/login — producing the infinite login loop.
- *  Letting the useEffect below handle the redirect is the correct, event-driven pattern.
+ *  onAuthStateChanged propagation. AdminShell renders before isAdmin is true →
+ *  its guard redirects back to login. The useEffect waits for auth state to settle.
  */
 
 "use client";
@@ -24,14 +27,14 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { FirebaseError } from "firebase/app";
 import { Loader2 } from "lucide-react";
-import { authErrorMessage, useAuth } from "@/lib/auth";
+import { AdminNotAuthorizedError, authErrorMessage, useAuth } from "@/lib/auth";
 import { isFirebaseConfigured } from "@/lib/firebase";
 import { profile } from "@/lib/content";
 
 type PageMode = "login" | "reset";
 
 export default function LoginPage() {
-  const { login, resetPassword, logout, user, isAdmin, loading } = useAuth();
+  const { login, resetPassword, isAdmin, loading } = useAuth();
   const router = useRouter();
 
   const [email, setEmail] = useState("");
@@ -53,36 +56,8 @@ export default function LoginPage() {
   }, [loading, isAdmin, router]);
 
   // ---------------------------------------------------------------------------
-  // Detect "logged-in but not admin" — the silent failure case.
-  //
-  // Firebase accepted the credentials (no error thrown), but the account's UID
-  // is not in NEXT_PUBLIC_ADMIN_UID. Without this guard the page just sits there
-  // with no feedback, which is what the user was experiencing.
-  //
-  // Fix: sign the non-admin user out immediately and show an actionable error
-  // that includes their actual UID so they can add it to .env.local if needed.
-  // ---------------------------------------------------------------------------
-  useEffect(() => {
-    if (!loading && user && !isAdmin) {
-      // Log the UID to the browser console to help diagnose UID mismatches.
-      console.warn(
-        `[Admin Login] Authenticated as ${user.email} (UID: ${user.uid}) ` +
-        `but this UID is not in NEXT_PUBLIC_ADMIN_UID. ` +
-        `Add it to .env.local and restart the dev server.`
-      );
-      // Sign out so the Firebase session doesn't persist.
-      logout().then(() => {
-        setError(
-          `Access denied. Your account (${user.email}) is not on the admin allow-list. ` +
-          `Open the browser console (F12) to copy your Firebase UID and add it to NEXT_PUBLIC_ADMIN_UID in .env.local, then restart the server.`
-        );
-      });
-    }
-  }, [loading, user, isAdmin, logout]);
-
-  // ---------------------------------------------------------------------------
-  // While auth is still initialising, show a minimal loading state so the form
-  // doesn't flash before we know whether to redirect.
+  // Loading skeleton — shown while Firebase resolves the persisted session.
+  // Prevents a flash of the login form before we know whether to redirect.
   // ---------------------------------------------------------------------------
   if (loading) {
     return (
@@ -92,11 +67,8 @@ export default function LoginPage() {
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // If auth has resolved and isAdmin is already true (e.g. user navigated back
-  // to /admin/login while still signed in), render nothing while the useEffect
-  // redirect kicks in — prevents a flash of the login form.
-  // ---------------------------------------------------------------------------
+  // If already signed in as admin (e.g. navigated back to /admin/login), return
+  // null to prevent flashing the form while the useEffect redirect fires.
   if (isAdmin) return null;
 
   // ---------------------------------------------------------------------------
@@ -113,13 +85,26 @@ export default function LoginPage() {
         await resetPassword(email);
         setNotice("If an account exists for that address, a reset link is on its way.");
       } else {
-        // Sign in only. Do NOT call router.replace here.
-        // The useEffect above handles the redirect once onAuthStateChanged confirms isAdmin.
+        // login() handles three cases internally:
+        //  - Wrong credentials → throws FirebaseError (caught below)
+        //  - Valid credentials, UID not in allow-list → throws AdminNotAuthorizedError (caught below)
+        //  - Valid credentials, UID allowed → returns. useEffect above handles redirect.
         await login(email, password);
       }
     } catch (err) {
-      const code = err instanceof FirebaseError ? err.code : "";
-      setError(authErrorMessage(code));
+      if (err instanceof AdminNotAuthorizedError) {
+        // Firebase accepted the password, but this account is not an admin.
+        // login() has already signed them out. Show an actionable error with their UID.
+        setError(
+          `Access denied — ${err.email} is not on the admin allow-list. ` +
+          `Add UID "${err.uid}" to NEXT_PUBLIC_ADMIN_UID in .env.local (local) ` +
+          `or in your Vercel project's Environment Variables (production), then redeploy.`
+        );
+      } else {
+        // Wrong password, no account, network error, etc.
+        const code = err instanceof FirebaseError ? err.code : "";
+        setError(authErrorMessage(code));
+      }
     } finally {
       setBusy(false);
     }
@@ -137,7 +122,7 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-surface-sub px-6 dark:bg-[#0B0F16]">
       <div className="w-full max-w-sm">
-        {/* Site logo / brand mark */}
+        {/* Brand mark */}
         <Link href="/" className="mb-10 block text-center">
           <div className="font-display text-xl font-semibold">{profile.name}</div>
           <div className="mt-1.5 font-mono text-[0.625rem] uppercase tracking-[0.16em] text-ink-muted">
@@ -155,7 +140,7 @@ export default function LoginPage() {
               : "This dashboard is restricted to the site owner."}
           </p>
 
-          {/* Firebase not yet configured — show a setup notice instead of a cryptic error */}
+          {/* Firebase not yet configured */}
           {!isFirebaseConfigured && (
             <p className="mt-5 rounded-lg border border-amber-300 bg-amber-50 px-3.5 py-2.5 text-sm text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
               Firebase isn&rsquo;t configured yet. Copy <code>.env.local.example</code> to{" "}
@@ -194,7 +179,7 @@ export default function LoginPage() {
               </label>
             )}
 
-            {/* Error banner — shown on wrong credentials or network failure */}
+            {/* Error banner */}
             {error && (
               <p
                 role="alert"
@@ -205,7 +190,7 @@ export default function LoginPage() {
               </p>
             )}
 
-            {/* Notice banner — shown after password reset email is sent */}
+            {/* Notice banner */}
             {notice && (
               <p
                 role="status"
@@ -222,11 +207,7 @@ export default function LoginPage() {
               disabled={busy}
               className="btn-primary w-full"
             >
-              {busy
-                ? "Working…"
-                : mode === "reset"
-                ? "Send reset link"
-                : "Sign in"}
+              {busy ? "Working…" : mode === "reset" ? "Send reset link" : "Sign in"}
             </button>
           </form>
 

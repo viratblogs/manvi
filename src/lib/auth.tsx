@@ -26,6 +26,22 @@ import {
 import { ADMIN_UIDS, auth } from "./firebase";
 
 // ---------------------------------------------------------------------------
+// Custom error for non-admin accounts
+// ---------------------------------------------------------------------------
+
+/**
+ * Thrown by login() when Firebase authenticates the user successfully but
+ * their UID is not in the NEXT_PUBLIC_ADMIN_UID allow-list.
+ * Distinct from FirebaseError so the login page can show a specific message.
+ */
+export class AdminNotAuthorizedError extends Error {
+  constructor(public readonly uid: string, public readonly email: string) {
+    super(`UID ${uid} is not in the admin allow-list.`);
+    this.name = "AdminNotAuthorizedError";
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
@@ -39,7 +55,12 @@ interface AuthState {
   isAdmin: boolean;
   /** True while Firebase is still resolving the persisted auth session on mount. */
   loading: boolean;
-  /** Signs in with email and password. Throws a FirebaseError on failure. */
+  /**
+   * Signs in with email and password.
+   * Throws a FirebaseError on bad credentials.
+   * Throws AdminNotAuthorizedError if the credentials are valid but the UID
+   * is not in NEXT_PUBLIC_ADMIN_UID — immediately signs the user back out.
+   */
   login: (email: string, password: string) => Promise<void>;
   /** Signs the current user out. */
   logout: () => Promise<void>;
@@ -75,7 +96,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     user,
     isAdmin: !!user && (ADMIN_UIDS.length === 0 || ADMIN_UIDS.includes(user.uid)),
     loading,
-    login: (email, password) => signInWithEmailAndPassword(auth, email, password).then(() => undefined),
+    /**
+     * Login flow:
+     *  1. Firebase signs the user in.
+     *  2. We immediately check if their UID is allowed.
+     *  3. If NOT allowed: sign them back out and throw AdminNotAuthorizedError.
+     *     The login page catches this and shows a clear error — no silent failures,
+     *     no race conditions, no useEffect timing issues.
+     *  4. If allowed: return normally. onAuthStateChanged will fire and set isAdmin=true,
+     *     which the login page's useEffect detects and redirects to /admin.
+     */
+    login: async (email, password) => {
+      const credential = await signInWithEmailAndPassword(auth, email, password);
+      const uid = credential.user.uid;
+      const isAllowed = ADMIN_UIDS.length === 0 || ADMIN_UIDS.includes(uid);
+      if (!isAllowed) {
+        // Sign out immediately so no admin session persists.
+        await signOut(auth);
+        throw new AdminNotAuthorizedError(uid, credential.user.email ?? email);
+      }
+    },
     logout: () => signOut(auth),
     resetPassword: (email) => sendPasswordResetEmail(auth, email),
   };
