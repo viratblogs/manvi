@@ -31,7 +31,7 @@ import { profile } from "@/lib/content";
 type PageMode = "login" | "reset";
 
 export default function LoginPage() {
-  const { login, resetPassword, isAdmin, loading } = useAuth();
+  const { login, resetPassword, logout, user, isAdmin, loading } = useAuth();
   const router = useRouter();
 
   const [email, setEmail] = useState("");
@@ -51,6 +51,34 @@ export default function LoginPage() {
       router.replace("/admin");
     }
   }, [loading, isAdmin, router]);
+
+  // ---------------------------------------------------------------------------
+  // Detect "logged-in but not admin" — the silent failure case.
+  //
+  // Firebase accepted the credentials (no error thrown), but the account's UID
+  // is not in NEXT_PUBLIC_ADMIN_UID. Without this guard the page just sits there
+  // with no feedback, which is what the user was experiencing.
+  //
+  // Fix: sign the non-admin user out immediately and show an actionable error
+  // that includes their actual UID so they can add it to .env.local if needed.
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    if (!loading && user && !isAdmin) {
+      // Log the UID to the browser console to help diagnose UID mismatches.
+      console.warn(
+        `[Admin Login] Authenticated as ${user.email} (UID: ${user.uid}) ` +
+        `but this UID is not in NEXT_PUBLIC_ADMIN_UID. ` +
+        `Add it to .env.local and restart the dev server.`
+      );
+      // Sign out so the Firebase session doesn't persist.
+      logout().then(() => {
+        setError(
+          `Access denied. Your account (${user.email}) is not on the admin allow-list. ` +
+          `Open the browser console (F12) to copy your Firebase UID and add it to NEXT_PUBLIC_ADMIN_UID in .env.local, then restart the server.`
+        );
+      });
+    }
+  }, [loading, user, isAdmin, logout]);
 
   // ---------------------------------------------------------------------------
   // While auth is still initialising, show a minimal loading state so the form
