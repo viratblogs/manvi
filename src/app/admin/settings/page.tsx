@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AlertCircle, CheckCircle2, ImageIcon, Loader2, Plus, Save, Trash2, Upload, Sparkles, Tag, Milestone, User } from "lucide-react";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { MediaPickerModal } from "@/components/admin/MediaPickerModal";
@@ -10,6 +11,7 @@ import { SafeImage } from "@/components/site/SafeImage";
 import type { SiteSettings } from "@/types";
 
 export default function ProfileSettingsPage() {
+  const router = useRouter();
   const [settings, setSettings] = useState<SiteSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -67,7 +69,7 @@ export default function ProfileSettingsPage() {
   }
 
   // Tag Generator Functions (Task 2)
-  function handleAddSkill() {
+  async function handleAddSkill() {
     const trimmed = newSkillInput.trim();
     if (!trimmed || !settings) return;
     const currentSkills = settings.skills || [];
@@ -75,20 +77,52 @@ export default function ProfileSettingsPage() {
       setNewSkillInput("");
       return;
     }
-    setSettings({
+    const updatedSkills = [...currentSkills, trimmed];
+    const newSettings = {
       ...settings,
-      skills: [...currentSkills, trimmed],
-    });
+      skills: updatedSkills,
+    };
+    setSettings(newSettings);
     setNewSkillInput("");
+
+    try {
+      const updated = await updateSiteSettings({
+        heroImageUrl: newSettings.heroImageUrl,
+        bioStatement: newSettings.bioStatement,
+        skills: newSettings.skills,
+        professionalJourney: newSettings.professionalJourney,
+      });
+      setSettings((prev) => ({ ...prev, ...updated }));
+      router.refresh();
+      setSuccess(`Added skill "${trimmed}" and updated website live!`);
+    } catch (err) {
+      console.error("Auto-save skill error:", err);
+    }
   }
 
-  function handleRemoveSkill(skillToRemove: string) {
+  async function handleRemoveSkill(skillToRemove: string) {
     if (!settings) return;
     const currentSkills = settings.skills || [];
-    setSettings({
+    const updatedSkills = currentSkills.filter((s) => s !== skillToRemove);
+    const newSettings = {
       ...settings,
-      skills: currentSkills.filter((s) => s !== skillToRemove),
-    });
+      skills: updatedSkills,
+    };
+    setSettings(newSettings);
+
+    try {
+      const updated = await updateSiteSettings({
+        heroImageUrl: newSettings.heroImageUrl,
+        bioStatement: newSettings.bioStatement,
+        skills: newSettings.skills,
+        professionalJourney: newSettings.professionalJourney,
+      });
+      setSettings((prev) => ({ ...prev, ...updated }));
+      router.refresh();
+      setSuccess(`Removed skill "${skillToRemove}" and updated website live!`);
+    } catch (err) {
+      console.error("Auto-save remove skill error:", err);
+    }
   }
 
   async function handleSave(e: React.FormEvent) {
@@ -107,6 +141,7 @@ export default function ProfileSettingsPage() {
         professionalJourney: settings.professionalJourney,
       });
       setSettings((prev) => ({ ...prev, ...updated }));
+      router.refresh();
       setSuccess("Site sections updated successfully! Your changes are now live across the homepage and website.");
     } catch (err: unknown) {
       console.error("Save settings error:", err);

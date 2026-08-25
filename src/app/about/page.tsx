@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ExternalLink, ShieldCheck } from "lucide-react";
+import { ExternalLink, ShieldCheck, Tag } from "lucide-react";
 import { SiteShell } from "@/components/site/SiteShell";
 import { SectionLabel } from "@/components/site/SectionLabel";
 import { Reveal, Stagger, StaggerItem } from "@/components/site/Reveal";
@@ -17,16 +17,27 @@ export default function AboutPage() {
   const [siteSettings, setSiteSettings] = useState<SiteSettings | null>(null);
 
   useEffect(() => {
-    getSiteSettings()
-      .then((s) => {
-        setSiteSettings(s);
-        if (s.heroImageUrl) setProfileImage(s.heroImageUrl);
-      })
-      .catch((e) => console.error(e));
+    const fetchSettings = () => {
+      getSiteSettings()
+        .then((s) => {
+          setSiteSettings(s);
+          if (s.heroImageUrl) setProfileImage(s.heroImageUrl);
+        })
+        .catch((e) => console.error(e));
+    };
+
+    fetchSettings();
 
     getAchievements()
       .then(setAchievements)
       .catch((e) => console.error(e));
+
+    window.addEventListener("focus", fetchSettings);
+    window.addEventListener("visibilitychange", fetchSettings);
+    return () => {
+      window.removeEventListener("focus", fetchSettings);
+      window.removeEventListener("visibilitychange", fetchSettings);
+    };
   }, []);
 
   // Helper to parse Professional Journey text into timeline blocks
@@ -241,16 +252,19 @@ export default function AboutPage() {
       <section className="border-t border-line bg-surface-sub py-section dark:border-white/10 dark:bg-white/[0.02]">
         <div className="shell">
           <SectionLabel>Capability</SectionLabel>
-          <h2 className="mb-14 font-display text-section font-semibold">Core competencies</h2>
+          <h2 className="mb-6 font-display text-section font-semibold">Core competencies</h2>
 
-          {/* Dynamic Core Competency Pills */}
+          {/* Dynamic Core Competency Badges */}
           {dynamicSkills.length > 0 && (
             <div className="mb-12">
-              <div className="measure mb-5">Key Skills</div>
-              <Stagger className="flex flex-wrap gap-2">
+              <div className="measure mb-4">Key Skills</div>
+              <Stagger className="flex flex-wrap gap-2.5 sm:gap-3">
                 {dynamicSkills.map((skill) => (
                   <StaggerItem key={skill}>
-                    <span className="pill">{skill}</span>
+                    <span className="inline-flex items-center gap-2 rounded-xl border border-line bg-surface px-4 py-2.5 text-sm font-medium text-ink shadow-xs transition-all duration-300 hover:border-primary/40 hover:bg-primary/5 hover:shadow-card dark:border-white/10 dark:bg-[#0B0F16] dark:text-white dark:hover:border-white/20">
+                      <Tag className="h-3.5 w-3.5 text-primary shrink-0 dark:text-[#7FB3E0]" />
+                      {skill}
+                    </span>
                   </StaggerItem>
                 ))}
               </Stagger>
@@ -258,16 +272,19 @@ export default function AboutPage() {
           )}
 
           {/* Functional Breakdown Groups */}
-          <Stagger className="grid gap-10 sm:grid-cols-2 lg:grid-cols-3">
-            {competencies.map((group) => (
-              <StaggerItem key={group.group}>
-                <div className="measure mb-5">{group.group}</div>
-                <div className="flex flex-wrap gap-2">
-                  {group.items.map((item) => <span key={item} className="pill">{item}</span>)}
-                </div>
-              </StaggerItem>
-            ))}
-          </Stagger>
+          <div className="pt-8 border-t border-line/50 dark:border-white/10">
+            <div className="measure mb-6">Functional Breakdown</div>
+            <Stagger className="grid gap-10 sm:grid-cols-2 lg:grid-cols-3">
+              {competencies.map((group) => (
+                <StaggerItem key={group.group}>
+                  <div className="measure mb-5">{group.group}</div>
+                  <div className="flex flex-wrap gap-2">
+                    {group.items.map((item) => <span key={item} className="pill">{item}</span>)}
+                  </div>
+                </StaggerItem>
+              ))}
+            </Stagger>
+          </div>
         </div>
       </section>
 

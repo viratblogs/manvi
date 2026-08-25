@@ -11,13 +11,11 @@ import { SafeImage } from "@/components/site/SafeImage";
 export function Hero() {
   const reduce = useReducedMotion();
   const [heroImage, setHeroImage] = useState<string>("/m.png");
-  const [bioStatement, setBioStatement] = useState<string>("");
 
   useEffect(() => {
     getSiteSettings()
       .then((s) => {
         if (s.heroImageUrl) setHeroImage(s.heroImageUrl);
-        if (s.bioStatement) setBioStatement(s.bioStatement);
       })
       .catch((err) => console.error("Hero settings load error:", err));
   }, []);
@@ -54,7 +52,7 @@ export function Hero() {
             {...rise(0.16)}
             className="mt-6 sm:mt-8 max-w-xl text-base sm:text-lg leading-relaxed text-ink-muted"
           >
-            {bioStatement || profile.intro}
+            {profile.intro}
           </motion.p>
 
           <motion.div {...rise(0.24)} className="mt-8 sm:mt-11 flex flex-wrap items-center gap-4">
