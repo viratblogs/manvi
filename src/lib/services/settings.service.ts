@@ -2,7 +2,7 @@ import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { SiteSettings, CompetencyGroup } from "@/types";
 
-const LOCAL_STORAGE_KEY = "site_settings_cache_v1";
+const LOCAL_STORAGE_KEY = "site_settings_cache_v2";
 
 export const DEFAULT_COMPETENCIES_GROUPS: CompetencyGroup[] = [
   { group: "Strategy", items: ["Strategic planning", "Business transformation", "Stakeholder management", "Market research"] },
@@ -67,7 +67,14 @@ export async function getSiteSettings(): Promise<SiteSettings> {
     const snap = await getDoc(doc(db, "settings", "site"));
     if (snap.exists()) {
       const data = snap.data() as Partial<SiteSettings>;
-      const merged = { ...DEFAULT_SETTINGS, ...data };
+      const merged: SiteSettings = {
+        ...DEFAULT_SETTINGS,
+        ...data,
+        skills: Array.isArray(data.skills) ? data.skills : DEFAULT_SETTINGS.skills,
+        competenciesGroups: Array.isArray(data.competenciesGroups) && data.competenciesGroups.length > 0
+          ? data.competenciesGroups
+          : DEFAULT_COMPETENCIES_GROUPS,
+      };
       saveLocalCache(merged);
       return merged;
     }
@@ -88,8 +95,17 @@ export async function getSiteSettings(): Promise<SiteSettings> {
     if (res.ok) {
       const json = await res.json();
       if (json.settings) {
-        saveLocalCache(json.settings);
-        return json.settings;
+        const data = json.settings as Partial<SiteSettings>;
+        const merged: SiteSettings = {
+          ...DEFAULT_SETTINGS,
+          ...data,
+          skills: Array.isArray(data.skills) ? data.skills : DEFAULT_SETTINGS.skills,
+          competenciesGroups: Array.isArray(data.competenciesGroups) && data.competenciesGroups.length > 0
+            ? data.competenciesGroups
+            : DEFAULT_COMPETENCIES_GROUPS,
+        };
+        saveLocalCache(merged);
+        return merged;
       }
     }
   } catch (err) {
@@ -98,7 +114,16 @@ export async function getSiteSettings(): Promise<SiteSettings> {
 
   // 3. Fallback to browser localStorage cache if offline / uninitialized Firestore
   const cached = getLocalCache();
-  if (cached) return cached;
+  if (cached) {
+    return {
+      ...DEFAULT_SETTINGS,
+      ...cached,
+      skills: Array.isArray(cached.skills) ? cached.skills : DEFAULT_SETTINGS.skills,
+      competenciesGroups: Array.isArray(cached.competenciesGroups) && cached.competenciesGroups.length > 0
+        ? cached.competenciesGroups
+        : DEFAULT_COMPETENCIES_GROUPS,
+    };
+  }
 
   return DEFAULT_SETTINGS;
 }
@@ -111,14 +136,16 @@ export async function updateSiteSettings(patch: Partial<SiteSettings>): Promise<
     updatedAt: Date.now(),
   };
 
-  // 1. Save to browser localStorage cache immediately
+  // 1. Save to browser localStorage cache immediately for persistent offline & reload safety
   saveLocalCache(updatedSettings);
+
+  const cleanPayload = JSON.parse(JSON.stringify(updatedSettings));
 
   // 2. Write directly to Firestore from the client (authenticated Firebase user session)
   try {
-    await setDoc(doc(db, "settings", "site"), updatedSettings, { merge: true });
+    await setDoc(doc(db, "settings", "site"), cleanPayload, { merge: true });
   } catch (err) {
-    console.warn("[SettingsService] Direct Firestore write warning:", err);
+    console.error("[SettingsService] Direct Firestore write error:", err);
   }
 
   // 3. Sync to API route for local store.json persistence
@@ -127,7 +154,7 @@ export async function updateSiteSettings(patch: Partial<SiteSettings>): Promise<
     await fetch(`${origin}/api/settings`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(updatedSettings),
+      body: JSON.stringify(cleanPayload),
     });
   } catch (err) {
     console.warn("[SettingsService] API PUT sync warning:", err);
