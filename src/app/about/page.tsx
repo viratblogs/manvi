@@ -12,11 +12,17 @@ import { getAchievements } from "@/lib/services/achievements.service";
 import type { Achievement, SiteSettings } from "@/types";
 
 export default function AboutPage() {
-  const [profileImage, setProfileImage] = useState<string>(() => getCachedHeroImageUrl());
+  const [profileImage, setProfileImage] = useState<string>("");
   const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [siteSettings, setSiteSettings] = useState<SiteSettings | null>(null);
 
   useEffect(() => {
+    // Hydrate immediately on client mount from cache (avoids SSR mismatch)
+    const cached = getCachedHeroImageUrl();
+    if (cached) {
+      setProfileImage(cached);
+    }
+
     const fetchSettings = () => {
       getSiteSettings()
         .then((s) => {

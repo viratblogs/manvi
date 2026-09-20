@@ -10,9 +10,15 @@ import { SafeImage } from "@/components/site/SafeImage";
 
 export function Hero() {
   const reduce = useReducedMotion();
-  const [heroImage, setHeroImage] = useState<string>(() => getCachedHeroImageUrl());
+  const [heroImage, setHeroImage] = useState<string>("");
 
   useEffect(() => {
+    // Hydrate immediately on client mount from cache (avoids SSR mismatch)
+    const cached = getCachedHeroImageUrl();
+    if (cached) {
+      setHeroImage(cached);
+    }
+
     const fetchHero = () => {
       getSiteSettings()
         .then((s) => {
