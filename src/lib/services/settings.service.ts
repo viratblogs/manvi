@@ -45,6 +45,20 @@ Specialising in hospital operations, healthcare quality systems, health informat
 
 const LOCAL_STORAGE_KEY = "site_settings_cache_v2";
 
+export function getCachedHeroImageUrl(): string {
+  if (typeof window === "undefined") return "";
+  try {
+    const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<SiteSettings>;
+      if (parsed?.heroImageUrl) return parsed.heroImageUrl;
+    }
+  } catch {
+    // ignore
+  }
+  return "";
+}
+
 function getLocalCache(): SiteSettings | null {
   if (typeof window === "undefined") return null;
   try {

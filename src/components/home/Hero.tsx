@@ -5,12 +5,12 @@ import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
 import { ArrowRight, Download } from "lucide-react";
 import { profile } from "@/lib/content";
-import { getSiteSettings } from "@/lib/services/settings.service";
+import { getSiteSettings, getCachedHeroImageUrl } from "@/lib/services/settings.service";
 import { SafeImage } from "@/components/site/SafeImage";
 
 export function Hero() {
   const reduce = useReducedMotion();
-  const [heroImage, setHeroImage] = useState<string>("/m.png");
+  const [heroImage, setHeroImage] = useState<string>(() => getCachedHeroImageUrl());
 
   useEffect(() => {
     const fetchHero = () => {
@@ -90,7 +90,6 @@ export function Hero() {
             <div className="relative aspect-[4/5] w-full overflow-hidden rounded-2xl border border-line bg-surface-sub dark:border-white/10">
               <SafeImage
                 src={heroImage}
-                fallbackSrc="/m.png"
                 alt={`${profile.name}, ${profile.role}`}
                 fill
                 priority

@@ -7,12 +7,12 @@ import { SectionLabel } from "@/components/site/SectionLabel";
 import { Reveal, Stagger, StaggerItem } from "@/components/site/Reveal";
 import { SafeImage } from "@/components/site/SafeImage";
 import { competencies, profile, timeline as staticTimeline } from "@/lib/content";
-import { getSiteSettings, DEFAULT_SETTINGS, DEFAULT_COMPETENCIES_GROUPS } from "@/lib/services/settings.service";
+import { getSiteSettings, getCachedHeroImageUrl, DEFAULT_SETTINGS, DEFAULT_COMPETENCIES_GROUPS } from "@/lib/services/settings.service";
 import { getAchievements } from "@/lib/services/achievements.service";
 import type { Achievement, SiteSettings } from "@/types";
 
 export default function AboutPage() {
-  const [profileImage, setProfileImage] = useState<string>("/m.png");
+  const [profileImage, setProfileImage] = useState<string>(() => getCachedHeroImageUrl());
   const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [siteSettings, setSiteSettings] = useState<SiteSettings | null>(null);
 
@@ -85,7 +85,6 @@ export default function AboutPage() {
             <div className="relative aspect-[4/5] overflow-hidden rounded-2xl border border-line bg-surface-sub lg:sticky lg:top-28 dark:border-white/10">
               <SafeImage
                 src={profileImage}
-                fallbackSrc="/m.png"
                 alt={profile.name}
                 fill
                 priority

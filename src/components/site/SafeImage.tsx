@@ -44,7 +44,19 @@ export function SafeImage({
   }, [src]);
 
   const activeSrc = resolvedSrc || src;
-  const effectiveSrc = error || !activeSrc ? fallbackSrc : activeSrc;
+  // Use fallbackSrc only if an actual error occurs loading the image
+  const effectiveSrc = error ? (fallbackSrc || "/m.png") : activeSrc;
+
+  // If no image source is ready yet, show a matching shimmer skeleton instead of flashing the wrong picture
+  if (!effectiveSrc) {
+    return (
+      <div
+        className={`bg-surface-sub/80 animate-pulse ${className || ""} ${fill ? "h-full w-full" : ""}`}
+        style={!fill && width && height ? { width, height } : undefined}
+      />
+    );
+  }
+
   const isDataUrl = effectiveSrc.startsWith("data:");
   const isBlob = effectiveSrc.startsWith("blob:");
 
