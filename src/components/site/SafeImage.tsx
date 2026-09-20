@@ -21,13 +21,30 @@ export function SafeImage({
   ...props
 }: SafeImageProps) {
   const [error, setError] = useState(false);
+  const [resolvedSrc, setResolvedSrc] = useState<string | null>(null);
 
-  // Reset error when src changes
+  // Reset error and auto-resolve ImgBB page URLs if provided
   useEffect(() => {
     setError(false);
+    if (src && src.includes("ibb.co/") && !src.includes("i.ibb.co/")) {
+      const match = src.trim().match(/^https?:\/\/ibb\.co\/([a-zA-Z0-9]+)\/?$/i);
+      if (match) {
+        fetch(`https://ibb.co/${match[1]}/oembed.json`)
+          .then((r) => r.json())
+          .then((d) => {
+            if (d.url && typeof d.url === "string") {
+              setResolvedSrc(d.url);
+            }
+          })
+          .catch(() => setResolvedSrc(null));
+        return;
+      }
+    }
+    setResolvedSrc(null);
   }, [src]);
 
-  const effectiveSrc = error || !src ? fallbackSrc : src;
+  const activeSrc = resolvedSrc || src;
+  const effectiveSrc = error || !activeSrc ? fallbackSrc : activeSrc;
   const isDataUrl = effectiveSrc.startsWith("data:");
   const isBlob = effectiveSrc.startsWith("blob:");
 

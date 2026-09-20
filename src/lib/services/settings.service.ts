@@ -83,12 +83,14 @@ function mergeWithDefaults(data: Partial<SiteSettings>): SiteSettings {
 // Public API
 // ---------------------------------------------------------------------------
 
+import { resolveImgBbUrl } from "@/lib/services/media.service";
+
 /**
  * Fetch site settings. Reads from Firestore as the single source of truth.
- * Falls back to localStorage cache (for instant render) and then defaults.
+ * Falls back to /api/settings, then localStorage cache, then defaults.
  */
 export async function getSiteSettings(): Promise<SiteSettings> {
-  // 1. Try Firestore (works in both local and production)
+  // 1. Try Firestore direct read (works in both local and production)
   try {
     const snap = await getDoc(doc(db, "settings", "site"));
     if (snap.exists()) {
@@ -97,37 +99,76 @@ export async function getSiteSettings(): Promise<SiteSettings> {
       return merged;
     }
   } catch (err) {
-    console.warn("[SettingsService] Firestore read error:", err);
+    console.warn("[SettingsService] Firestore direct read error:", err);
   }
 
-  // 2. Fallback to browser localStorage cache (offline / cold start)
+  // 2. Try Next.js API route as a server-side proxy fallback
+  if (typeof window !== "undefined") {
+    try {
+      const res = await fetch(`/api/settings?t=${Date.now()}`, { cache: "no-store" });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.settings && Object.keys(json.settings).length > 0) {
+          const merged = mergeWithDefaults(json.settings);
+          saveLocalCache(merged);
+          return merged;
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  // 3. Fallback to browser localStorage cache (offline / cold start)
   const cached = getLocalCache();
   if (cached) {
     return mergeWithDefaults(cached);
   }
 
-  // 3. Hardcoded defaults
+  // 4. Hardcoded defaults
   return DEFAULT_SETTINGS;
 }
 
 /**
- * Persist updated settings to Firestore. Also updates localStorage for
- * instant reflection on page re-renders without a network round-trip.
+ * Persist updated settings to Firestore. Dual-syncs with /api/settings
+ * and updates local cache only after successful persistence.
  */
 export async function updateSiteSettings(patch: Partial<SiteSettings>): Promise<SiteSettings> {
   const current = await getSiteSettings();
+
+  // If heroImageUrl is an ImgBB link, resolve it to direct CDN URL
+  let resolvedHeroImage = patch.heroImageUrl !== undefined ? patch.heroImageUrl : current.heroImageUrl;
+  if (resolvedHeroImage && resolvedHeroImage.includes("ibb.co/") && !resolvedHeroImage.includes("i.ibb.co/")) {
+    try {
+      resolvedHeroImage = await resolveImgBbUrl(resolvedHeroImage);
+    } catch {
+      // keep as is
+    }
+  }
+
   const updated: SiteSettings = {
     ...current,
     ...patch,
+    heroImageUrl: resolvedHeroImage,
     updatedAt: Date.now(),
   };
 
-  // Update localStorage immediately for snappy UI
-  saveLocalCache(updated);
-
-  // Persist to Firestore (single source of truth)
   const cleanPayload = JSON.parse(JSON.stringify(updated));
+
+  // 1. Persist directly to Firestore (primary source of truth)
   await setDoc(doc(db, "settings", "site"), cleanPayload, { merge: true });
+
+  // 2. Dual-sync to server route in background
+  if (typeof window !== "undefined") {
+    fetch("/api/settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(cleanPayload),
+    }).catch((e) => console.warn("[SettingsService] API sync notice:", e));
+  }
+
+  // 3. Cache in localStorage only AFTER persistence succeeds
+  saveLocalCache(updated);
 
   return updated;
 }

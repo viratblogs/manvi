@@ -13,11 +13,22 @@ export function Hero() {
   const [heroImage, setHeroImage] = useState<string>("/m.png");
 
   useEffect(() => {
-    getSiteSettings()
-      .then((s) => {
-        if (s.heroImageUrl) setHeroImage(s.heroImageUrl);
-      })
-      .catch((err) => console.error("Hero settings load error:", err));
+    const fetchHero = () => {
+      getSiteSettings()
+        .then((s) => {
+          if (s.heroImageUrl) setHeroImage(s.heroImageUrl);
+        })
+        .catch((err) => console.error("Hero settings load error:", err));
+    };
+
+    fetchHero();
+
+    window.addEventListener("focus", fetchHero);
+    window.addEventListener("visibilitychange", fetchHero);
+    return () => {
+      window.removeEventListener("focus", fetchHero);
+      window.removeEventListener("visibilitychange", fetchHero);
+    };
   }, []);
 
   const rise = (delay: number) =>

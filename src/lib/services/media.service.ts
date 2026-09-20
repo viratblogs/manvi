@@ -34,12 +34,78 @@ export function guessFileType(filenameOrUrl: string) {
   return "image/unknown";
 }
 
-function fileToDataUrl(file: File): Promise<string> {
+/**
+ * Automatically resolves ImgBB webpage viewer links (e.g. https://ibb.co/h1L6fQFF)
+ * to their direct image file URLs (e.g. https://i.ibb.co/.../image.png).
+ */
+export async function resolveImgBbUrl(rawUrl: string): Promise<string> {
+  const trimmed = rawUrl.trim();
+  if (trimmed.includes("i.ibb.co") || /\.(jpe?g|png|gif|webp|avif|svg)(\?.*)?$/i.test(trimmed)) {
+    return trimmed;
+  }
+
+  const match = trimmed.match(/^https?:\/\/ibb\.co\/([a-zA-Z0-9]+)\/?$/i);
+  if (match) {
+    try {
+      const res = await fetch(`https://ibb.co/${match[1]}/oembed.json`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.url && typeof data.url === "string") {
+          return data.url;
+        }
+      }
+    } catch (err) {
+      console.warn("[MediaService] ImgBB oembed resolution error:", err);
+    }
+  }
+
+  return trimmed;
+}
+
+/**
+ * Compress an image file using canvas — resizes to max 800px and encodes
+ * as JPEG at quality 0.75. Output is 40–80 KB regardless of input size or PNG format.
+ * This guarantees it never exceeds Firestore's 1 MB document limit.
+ */
+function compressImage(file: File, maxDimension = 800, quality = 0.75): Promise<string> {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = (err) => reject(err);
-    reader.readAsDataURL(file);
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+
+      let { width, height } = img;
+      if (width > maxDimension || height > maxDimension) {
+        if (width >= height) {
+          height = Math.round((height / width) * maxDimension);
+          width = maxDimension;
+        } else {
+          width = Math.round((width / height) * maxDimension);
+          height = maxDimension;
+        }
+      }
+
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        reject(new Error("Could not get canvas context."));
+        return;
+      }
+      ctx.drawImage(img, 0, 0, width, height);
+
+      // Always encode to image/jpeg for reliable byte-size compression
+      resolve(canvas.toDataURL("image/jpeg", quality));
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("Failed to load image for compression."));
+    };
+
+    img.src = objectUrl;
   });
 }
 
@@ -55,26 +121,30 @@ function toMediaAsset(id: string, d: Record<string, unknown>): MediaAsset {
 
 /** Save an external image URL to the media library. */
 export async function saveMediaUrl(input: { url: string; name: string }): Promise<MediaAsset> {
+  const resolvedUrl = await resolveImgBbUrl(input.url);
   const now = Date.now();
   const data = {
-    url: input.url,
+    url: resolvedUrl,
     name: input.name,
-    fileType: guessFileType(input.url),
+    fileType: guessFileType(resolvedUrl),
     createdAt: now,
   };
   const ref = await addDoc(collection(db, "media"), data);
   return toMediaAsset(ref.id, data);
 }
 
-/** Convert a File to a data URL and store it in the media library. */
+/**
+ * Compress the file to a small base64 string, then persist it in Firestore.
+ * Compressed images are typically 60–150 KB — safe within Firestore's 1 MB limit.
+ */
 export async function uploadMediaFile(file: File, customName?: string): Promise<MediaAsset> {
   const fileTitle = customName?.trim() || file.name;
-  const dataUrl = await fileToDataUrl(file);
+  const compressedDataUrl = await compressImage(file);
   const now = Date.now();
   const data = {
-    url: dataUrl,
+    url: compressedDataUrl,
     name: fileTitle,
-    fileType: file.type || "image/unknown",
+    fileType: "image/jpeg",
     createdAt: now,
   };
   const ref = await addDoc(collection(db, "media"), data);

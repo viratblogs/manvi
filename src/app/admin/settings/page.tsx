@@ -6,7 +6,7 @@ import { AlertCircle, CheckCircle2, ImageIcon, Loader2, Plus, Save, Trash2, Uplo
 import { AdminShell } from "@/components/admin/AdminShell";
 import { MediaPickerModal } from "@/components/admin/MediaPickerModal";
 import { getSiteSettings, updateSiteSettings, DEFAULT_SETTINGS, DEFAULT_COMPETENCIES_GROUPS } from "@/lib/services/settings.service";
-import { uploadMediaFile } from "@/lib/services/media.service";
+import { uploadMediaFile, resolveImgBbUrl } from "@/lib/services/media.service";
 import { SafeImage } from "@/components/site/SafeImage";
 import type { SiteSettings, CompetencyGroup } from "@/types";
 
@@ -59,15 +59,41 @@ export default function ProfileSettingsPage() {
     try {
       const asset = await uploadMediaFile(selected, "Profile Photo");
       if (settings) {
-        setSettings({ ...settings, heroImageUrl: asset.url });
+        const newSettings = { ...settings, heroImageUrl: asset.url };
+        setSettings(newSettings);
+        await updateSiteSettings(newSettings);
+        router.refresh();
       }
-      setSuccess("Image uploaded successfully! Click 'Save All Sections' below to apply.");
+      setSuccess("Profile photo uploaded and published live successfully!");
     } catch (err: unknown) {
       console.error("Profile picture upload failed:", err);
       const msg = err instanceof Error ? err.message : "Failed to upload image.";
       setError(msg);
     } finally {
       setUploading(false);
+    }
+  }
+
+  async function handleApplyImageUrl() {
+    if (!settings) return;
+    let url = (settings.heroImageUrl || "").trim();
+    if (!url) return;
+    setBusy(true);
+    setError("");
+    try {
+      if (url.includes("ibb.co/") && !url.includes("i.ibb.co/")) {
+        url = await resolveImgBbUrl(url);
+      }
+      const newSettings = { ...settings, heroImageUrl: url };
+      setSettings(newSettings);
+      await updateSiteSettings(newSettings);
+      router.refresh();
+      setSuccess("Profile photo updated and saved live!");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to save photo URL.";
+      setError(msg);
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -467,6 +493,14 @@ export default function ProfileSettingsPage() {
                       />
                       <button
                         type="button"
+                        onClick={handleApplyImageUrl}
+                        disabled={busy}
+                        className="btn-secondary shrink-0"
+                      >
+                        Apply Photo
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => setShowMediaPicker(true)}
                         className="btn-ghost shrink-0"
                       >
@@ -529,8 +563,18 @@ export default function ProfileSettingsPage() {
       <MediaPickerModal
         isOpen={showMediaPicker}
         onClose={() => setShowMediaPicker(false)}
-        onSelectImage={(url) => {
-          if (settings) setSettings({ ...settings, heroImageUrl: url });
+        onSelectImage={async (url) => {
+          if (settings) {
+            const newSettings = { ...settings, heroImageUrl: url };
+            setSettings(newSettings);
+            try {
+              await updateSiteSettings(newSettings);
+              router.refresh();
+              setSuccess("Profile photo updated from media library and saved live!");
+            } catch (err) {
+              console.error("Failed to auto-save selected media image:", err);
+            }
+          }
         }}
       />
     </AdminShell>
