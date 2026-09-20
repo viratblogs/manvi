@@ -172,16 +172,7 @@ export async function updateSiteSettings(patch: Partial<SiteSettings>): Promise<
   // 1. Persist directly to Firestore (primary source of truth)
   await setDoc(doc(db, "settings", "site"), cleanPayload, { merge: true });
 
-  // 2. Dual-sync to server route in background
-  if (typeof window !== "undefined") {
-    fetch("/api/settings", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(cleanPayload),
-    }).catch((e) => console.warn("[SettingsService] API sync notice:", e));
-  }
-
-  // 3. Cache in localStorage only AFTER persistence succeeds
+  // 2. Cache in localStorage only AFTER persistence succeeds
   saveLocalCache(updated);
 
   return updated;
