@@ -1,5 +1,18 @@
+import {
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  orderBy,
+  query,
+  updateDoc,
+} from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import type { Achievement } from "@/types";
 
+// Default achievements shown as fallback when Firestore is empty or unreachable
 export const DEFAULT_ACHIEVEMENTS: Achievement[] = [
   {
     id: "static-cert-1",
@@ -27,32 +40,43 @@ export const DEFAULT_ACHIEVEMENTS: Achievement[] = [
   },
 ];
 
+function toAchievement(id: string, d: Record<string, unknown>): Achievement {
+  return {
+    id,
+    title: (d.title as string) ?? "",
+    organisation: (d.organisation as string) ?? "",
+    year: (d.year as number) ?? new Date().getFullYear(),
+    category: (d.category as Achievement["category"]) ?? "Certification",
+    description: (d.description as string) ?? "",
+    imageUrl: (d.imageUrl as string) ?? "",
+    credentialUrl: (d.credentialUrl as string) ?? "",
+    createdAt: (d.createdAt as number) ?? Date.now(),
+    updatedAt: (d.updatedAt as number) ?? Date.now(),
+  };
+}
+
 export async function getAchievements(): Promise<Achievement[]> {
+  // Primary: read directly from Firestore (works in both local and production)
   try {
-    const origin = typeof window !== "undefined" ? "" : (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000");
-    const res = await fetch(`${origin}/api/achievements`, { cache: "no-store" });
-    if (res.ok) {
-      const json = await res.json();
-      if (Array.isArray(json.achievements) && json.achievements.length > 0) {
-        return json.achievements;
-      }
+    const q = query(collection(db, "achievements"), orderBy("createdAt", "desc"));
+    const snap = await getDocs(q);
+    if (!snap.empty) {
+      return snap.docs.map((s) => toAchievement(s.id, s.data()));
     }
   } catch (err) {
-    console.warn("[AchievementsService] API get error:", err);
+    console.warn("[AchievementsService] Firestore read error:", err);
   }
+
+  // Fallback: show default achievements when Firestore has no data yet
   return DEFAULT_ACHIEVEMENTS;
 }
 
 export async function getAchievementById(id: string): Promise<Achievement | null> {
   try {
-    const origin = typeof window !== "undefined" ? "" : (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000");
-    const res = await fetch(`${origin}/api/achievements/${id}`, { cache: "no-store" });
-    if (res.ok) {
-      const json = await res.json();
-      if (json.achievement) return json.achievement;
-    }
+    const snap = await getDoc(doc(db, "achievements", id));
+    if (snap.exists()) return toAchievement(snap.id, snap.data());
   } catch {
-    // fallback
+    // fallback to list scan
   }
   const all = await getAchievements();
   return all.find((a) => a.id === id) || null;
@@ -61,42 +85,22 @@ export async function getAchievementById(id: string): Promise<Achievement | null
 export async function createAchievement(
   data: Omit<Achievement, "id" | "createdAt" | "updatedAt">,
 ): Promise<string> {
-  const origin = typeof window !== "undefined" ? "" : (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000");
-  const res = await fetch(`${origin}/api/achievements`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
+  const now = Date.now();
+  const ref = await addDoc(collection(db, "achievements"), {
+    ...data,
+    createdAt: now,
+    updatedAt: now,
   });
-  const json = await res.json();
-  if (!res.ok || json.error) {
-    throw new Error(json.error || "Failed to create achievement.");
-  }
-  return json.id;
+  return ref.id;
 }
 
 export async function updateAchievement(
   id: string,
   data: Partial<Omit<Achievement, "id" | "createdAt">>,
 ): Promise<void> {
-  const origin = typeof window !== "undefined" ? "" : (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000");
-  const res = await fetch(`${origin}/api/achievements/${id}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
-  const json = await res.json();
-  if (!res.ok || json.error) {
-    throw new Error(json.error || "Failed to update achievement.");
-  }
+  await updateDoc(doc(db, "achievements", id), { ...data, updatedAt: Date.now() });
 }
 
 export async function deleteAchievement(id: string): Promise<void> {
-  const origin = typeof window !== "undefined" ? "" : (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000");
-  const res = await fetch(`${origin}/api/achievements/${id}`, {
-    method: "DELETE",
-  });
-  const json = await res.json();
-  if (!res.ok || json.error) {
-    throw new Error(json.error || "Failed to delete achievement.");
-  }
+  await deleteDoc(doc(db, "achievements", id));
 }

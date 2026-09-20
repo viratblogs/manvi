@@ -2,8 +2,6 @@ import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { SiteSettings, CompetencyGroup } from "@/types";
 
-const LOCAL_STORAGE_KEY = "site_settings_cache_v2";
-
 export const DEFAULT_COMPETENCIES_GROUPS: CompetencyGroup[] = [
   { group: "Strategy", items: ["Strategic planning", "Business transformation", "Stakeholder management", "Market research"] },
   { group: "Operations", items: ["Hospital administration", "Clinical operations", "Capacity planning", "Process improvement"] },
@@ -41,6 +39,12 @@ Specialising in hospital operations, healthcare quality systems, health informat
   updatedAt: Date.now(),
 };
 
+// ---------------------------------------------------------------------------
+// Browser localStorage cache helpers (for instant UI on revisit)
+// ---------------------------------------------------------------------------
+
+const LOCAL_STORAGE_KEY = "site_settings_cache_v2";
+
 function getLocalCache(): SiteSettings | null {
   if (typeof window === "undefined") return null;
   try {
@@ -61,104 +65,69 @@ function saveLocalCache(settings: SiteSettings) {
   }
 }
 
+function mergeWithDefaults(data: Partial<SiteSettings>): SiteSettings {
+  return {
+    ...DEFAULT_SETTINGS,
+    ...data,
+    skills: Array.isArray(data.skills) && data.skills.length > 0
+      ? data.skills
+      : DEFAULT_SETTINGS.skills,
+    competenciesGroups:
+      Array.isArray(data.competenciesGroups) && data.competenciesGroups.length > 0
+        ? data.competenciesGroups
+        : DEFAULT_COMPETENCIES_GROUPS,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
+/**
+ * Fetch site settings. Reads from Firestore as the single source of truth.
+ * Falls back to localStorage cache (for instant render) and then defaults.
+ */
 export async function getSiteSettings(): Promise<SiteSettings> {
-  // 1. Try direct Firestore read first (live production persistence)
+  // 1. Try Firestore (works in both local and production)
   try {
     const snap = await getDoc(doc(db, "settings", "site"));
     if (snap.exists()) {
-      const data = snap.data() as Partial<SiteSettings>;
-      const merged: SiteSettings = {
-        ...DEFAULT_SETTINGS,
-        ...data,
-        skills: Array.isArray(data.skills) ? data.skills : DEFAULT_SETTINGS.skills,
-        competenciesGroups: Array.isArray(data.competenciesGroups) && data.competenciesGroups.length > 0
-          ? data.competenciesGroups
-          : DEFAULT_COMPETENCIES_GROUPS,
-      };
+      const merged = mergeWithDefaults(snap.data() as Partial<SiteSettings>);
       saveLocalCache(merged);
       return merged;
     }
   } catch (err) {
-    console.warn("[SettingsService] Direct Firestore read error:", err);
+    console.warn("[SettingsService] Firestore read error:", err);
   }
 
-  // 2. Fallback to API route for local environment
-  try {
-    const origin = typeof window !== "undefined" ? "" : (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000");
-    const res = await fetch(`${origin}/api/settings?t=${Date.now()}`, {
-      cache: "no-store",
-      headers: {
-        "Cache-Control": "no-cache, no-store, must-revalidate, max-age=0",
-        "Pragma": "no-cache",
-      },
-    });
-    if (res.ok) {
-      const json = await res.json();
-      if (json.settings) {
-        const data = json.settings as Partial<SiteSettings>;
-        const merged: SiteSettings = {
-          ...DEFAULT_SETTINGS,
-          ...data,
-          skills: Array.isArray(data.skills) ? data.skills : DEFAULT_SETTINGS.skills,
-          competenciesGroups: Array.isArray(data.competenciesGroups) && data.competenciesGroups.length > 0
-            ? data.competenciesGroups
-            : DEFAULT_COMPETENCIES_GROUPS,
-        };
-        saveLocalCache(merged);
-        return merged;
-      }
-    }
-  } catch (err) {
-    console.warn("[SettingsService] API get error:", err);
-  }
-
-  // 3. Fallback to browser localStorage cache if offline / uninitialized Firestore
+  // 2. Fallback to browser localStorage cache (offline / cold start)
   const cached = getLocalCache();
   if (cached) {
-    return {
-      ...DEFAULT_SETTINGS,
-      ...cached,
-      skills: Array.isArray(cached.skills) ? cached.skills : DEFAULT_SETTINGS.skills,
-      competenciesGroups: Array.isArray(cached.competenciesGroups) && cached.competenciesGroups.length > 0
-        ? cached.competenciesGroups
-        : DEFAULT_COMPETENCIES_GROUPS,
-    };
+    return mergeWithDefaults(cached);
   }
 
+  // 3. Hardcoded defaults
   return DEFAULT_SETTINGS;
 }
 
+/**
+ * Persist updated settings to Firestore. Also updates localStorage for
+ * instant reflection on page re-renders without a network round-trip.
+ */
 export async function updateSiteSettings(patch: Partial<SiteSettings>): Promise<SiteSettings> {
-  const current = (await getSiteSettings()) || getLocalCache() || DEFAULT_SETTINGS;
-  const updatedSettings: SiteSettings = {
+  const current = await getSiteSettings();
+  const updated: SiteSettings = {
     ...current,
     ...patch,
     updatedAt: Date.now(),
   };
 
-  // 1. Save to browser localStorage cache immediately for persistent offline & reload safety
-  saveLocalCache(updatedSettings);
+  // Update localStorage immediately for snappy UI
+  saveLocalCache(updated);
 
-  const cleanPayload = JSON.parse(JSON.stringify(updatedSettings));
+  // Persist to Firestore (single source of truth)
+  const cleanPayload = JSON.parse(JSON.stringify(updated));
+  await setDoc(doc(db, "settings", "site"), cleanPayload, { merge: true });
 
-  // 2. Write directly to Firestore from the client (authenticated Firebase user session)
-  try {
-    await setDoc(doc(db, "settings", "site"), cleanPayload, { merge: true });
-  } catch (err) {
-    console.error("[SettingsService] Direct Firestore write error:", err);
-  }
-
-  // 3. Sync to API route for local store.json persistence
-  try {
-    const origin = typeof window !== "undefined" ? "" : (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000");
-    await fetch(`${origin}/api/settings`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(cleanPayload),
-    });
-  } catch (err) {
-    console.warn("[SettingsService] API PUT sync warning:", err);
-  }
-
-  return updatedSettings;
+  return updated;
 }

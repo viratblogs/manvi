@@ -1,26 +1,58 @@
+import {
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  orderBy,
+  query,
+  updateDoc,
+} from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import { caseStudies as defaultCaseStudies } from "../content";
 import type { FirestoreCaseStudy } from "@/types";
 
+function toCaseStudy(id: string, d: Record<string, unknown>): FirestoreCaseStudy {
+  return {
+    id,
+    slug: (d.slug as string) ?? "",
+    index: (d.index as string) ?? "01",
+    title: (d.title as string) ?? "Untitled",
+    summary: (d.summary as string) ?? "",
+    coverImage: (d.coverImage as string) ?? "",
+    context: (d.context as string) ?? "",
+    situation: (d.situation as string) ?? "",
+    task: (d.task as string) ?? "",
+    action: Array.isArray(d.action) ? (d.action as string[]) : [],
+    results: Array.isArray(d.results)
+      ? (d.results as FirestoreCaseStudy["results"])
+      : [],
+    takeaways: Array.isArray(d.takeaways) ? (d.takeaways as string[]) : [],
+    createdAt: (d.createdAt as number) ?? Date.now(),
+    updatedAt: (d.updatedAt as number) ?? Date.now(),
+  };
+}
+
 export async function getAllCaseStudies(): Promise<FirestoreCaseStudy[]> {
+  // Primary: read directly from Firestore (works in both local and production)
   try {
-    const origin = typeof window !== "undefined" ? "" : (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000");
-    const res = await fetch(`${origin}/api/case-studies`, { cache: "no-store" });
-    if (res.ok) {
-      const json = await res.json();
-      if (Array.isArray(json.caseStudies) && json.caseStudies.length > 0) {
-        return json.caseStudies;
-      }
+    const q = query(collection(db, "case-studies"), orderBy("createdAt", "desc"));
+    const snap = await getDocs(q);
+    if (!snap.empty) {
+      return snap.docs.map((s) => toCaseStudy(s.id, s.data()));
     }
   } catch (err) {
-    console.warn("[CaseStudiesService] API get error:", err);
+    console.warn("[CaseStudiesService] Firestore read error:", err);
   }
 
+  // Fallback: use static content when Firestore has no data yet
   return defaultCaseStudies.map((cs, idx) => ({
     id: `static-${cs.slug}`,
     ...cs,
     coverImage: "",
-    createdAt: Date.now() - (idx * 1000),
-    updatedAt: Date.now() - (idx * 1000),
+    createdAt: Date.now() - idx * 1000,
+    updatedAt: Date.now() - idx * 1000,
   }));
 }
 
@@ -29,6 +61,7 @@ export async function getCaseStudyBySlug(slug: string): Promise<FirestoreCaseStu
   const found = all.find((cs) => cs.slug === slug);
   if (found) return found;
 
+  // Fallback to static content
   const def = defaultCaseStudies.find((c) => c.slug === slug);
   if (def) {
     return {
@@ -43,55 +76,31 @@ export async function getCaseStudyBySlug(slug: string): Promise<FirestoreCaseStu
 }
 
 export async function getCaseStudyById(id: string): Promise<FirestoreCaseStudy | null> {
+  // Try direct Firestore read first
   try {
-    const origin = typeof window !== "undefined" ? "" : (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000");
-    const res = await fetch(`${origin}/api/case-studies/${id}`, { cache: "no-store" });
-    if (res.ok) {
-      const json = await res.json();
-      if (json.caseStudy) return json.caseStudy;
-    }
+    const snap = await getDoc(doc(db, "case-studies", id));
+    if (snap.exists()) return toCaseStudy(snap.id, snap.data());
   } catch {
     // fallback
   }
-
   const all = await getAllCaseStudies();
   return all.find((cs) => cs.id === id) || null;
 }
 
 export async function createCaseStudy(data: Partial<FirestoreCaseStudy>): Promise<string> {
-  const origin = typeof window !== "undefined" ? "" : (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000");
-  const res = await fetch(`${origin}/api/case-studies`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
+  const now = Date.now();
+  const ref = await addDoc(collection(db, "case-studies"), {
+    ...data,
+    createdAt: now,
+    updatedAt: now,
   });
-  const json = await res.json();
-  if (!res.ok || json.error) {
-    throw new Error(json.error || "Failed to create case study.");
-  }
-  return json.id;
+  return ref.id;
 }
 
 export async function updateCaseStudy(id: string, data: Partial<FirestoreCaseStudy>): Promise<void> {
-  const origin = typeof window !== "undefined" ? "" : (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000");
-  const res = await fetch(`${origin}/api/case-studies/${id}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
-  const json = await res.json();
-  if (!res.ok || json.error) {
-    throw new Error(json.error || "Failed to update case study.");
-  }
+  await updateDoc(doc(db, "case-studies", id), { ...data, updatedAt: Date.now() });
 }
 
 export async function deleteCaseStudy(id: string): Promise<void> {
-  const origin = typeof window !== "undefined" ? "" : (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000");
-  const res = await fetch(`${origin}/api/case-studies/${id}`, {
-    method: "DELETE",
-  });
-  const json = await res.json();
-  if (!res.ok || json.error) {
-    throw new Error(json.error || "Failed to delete case study.");
-  }
+  await deleteDoc(doc(db, "case-studies", id));
 }

@@ -1,3 +1,13 @@
+import {
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  getDocs,
+  orderBy,
+  query,
+} from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import type { MediaAsset } from "@/types";
 
 const IMAGE_EXT = /\.(jpe?g|png|gif|webp|avif|svg)(\?.*)?$/i;
@@ -33,59 +43,57 @@ function fileToDataUrl(file: File): Promise<string> {
   });
 }
 
-export async function saveMediaUrl(input: { url: string; name: string }): Promise<MediaAsset> {
-  const origin = typeof window !== "undefined" ? "" : (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000");
-  const res = await fetch(`${origin}/api/media/upload`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
-  const json = await res.json();
-  if (!res.ok || json.error) {
-    throw new Error(json.error || "Failed to save media link.");
-  }
-  return json.asset;
+function toMediaAsset(id: string, d: Record<string, unknown>): MediaAsset {
+  return {
+    id,
+    url: (d.url as string) ?? "",
+    name: (d.name as string) ?? "Untitled Asset",
+    fileType: (d.fileType as string) ?? "image/unknown",
+    createdAt: (d.createdAt as number) ?? Date.now(),
+  };
 }
 
+/** Save an external image URL to the media library. */
+export async function saveMediaUrl(input: { url: string; name: string }): Promise<MediaAsset> {
+  const now = Date.now();
+  const data = {
+    url: input.url,
+    name: input.name,
+    fileType: guessFileType(input.url),
+    createdAt: now,
+  };
+  const ref = await addDoc(collection(db, "media"), data);
+  return toMediaAsset(ref.id, data);
+}
+
+/** Convert a File to a data URL and store it in the media library. */
 export async function uploadMediaFile(file: File, customName?: string): Promise<MediaAsset> {
   const fileTitle = customName?.trim() || file.name;
   const dataUrl = await fileToDataUrl(file);
-
-  const origin = typeof window !== "undefined" ? "" : (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000");
-  const res = await fetch(`${origin}/api/media/upload`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ url: dataUrl, name: fileTitle }),
-  });
-
-  const json = await res.json();
-  if (!res.ok || json.error) {
-    throw new Error(json.error || "Failed to upload image file.");
-  }
-  return json.asset;
+  const now = Date.now();
+  const data = {
+    url: dataUrl,
+    name: fileTitle,
+    fileType: file.type || "image/unknown",
+    createdAt: now,
+  };
+  const ref = await addDoc(collection(db, "media"), data);
+  return toMediaAsset(ref.id, data);
 }
 
+/** Fetch all media assets from Firestore. */
 export async function getMedia(): Promise<MediaAsset[]> {
   try {
-    const origin = typeof window !== "undefined" ? "" : (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000");
-    const res = await fetch(`${origin}/api/media/upload`, { cache: "no-store" });
-    if (res.ok) {
-      const json = await res.json();
-      if (Array.isArray(json.media)) return json.media;
-    }
-  } catch {
-    // fallback
+    const q = query(collection(db, "media"), orderBy("createdAt", "desc"));
+    const snap = await getDocs(q);
+    return snap.docs.map((s) => toMediaAsset(s.id, s.data()));
+  } catch (err) {
+    console.warn("[MediaService] Firestore read error:", err);
+    return [];
   }
-  return [];
 }
 
-export async function deleteMedia(id: string) {
-  const origin = typeof window !== "undefined" ? "" : (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000");
-  const res = await fetch(`${origin}/api/media/upload?id=${encodeURIComponent(id)}`, {
-    method: "DELETE",
-  });
-  const json = await res.json();
-  if (!res.ok || json.error) {
-    throw new Error(json.error || "Failed to delete media asset.");
-  }
+/** Delete a media asset from Firestore. */
+export async function deleteMedia(id: string): Promise<void> {
+  await deleteDoc(doc(db, "media", id));
 }
