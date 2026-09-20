@@ -1,23 +1,21 @@
 rules_version = '2';
-
-// This file is the real security boundary. The client-side admin check is only for UX.
-// Deploy with: firebase deploy --only firestore:rules
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Admin check — checks that user is authenticated with Firebase Auth.
     function isAdmin() {
-      return request.auth != null;
+      return request.auth != null && (
+        request.auth.uid == 'PvU0uS7iJ5fOx5bETBVbhs9Npz53' ||
+        request.auth.uid == 'tIlyhAFaKsVXdATXm2FgvxWQ75r2' ||
+        request.auth.uid == 'ZCbz9gIhb9dybGHv8JqFvowFnCz1'
+      );
     }
 
     match /blogs/{blogId} {
-      // Anyone may read a published post; only the admin sees drafts.
       allow read: if resource.data.status == 'published' || isAdmin();
       allow create, update, delete: if isAdmin();
     }
 
     match /contacts/{contactId} {
-      // Visitors submit the form but can never read the inbox.
       allow create: if request.resource.data.keys().hasAll(['name','email','subject','message','status','createdAt'])
                     && request.resource.data.name is string
                     && request.resource.data.name.size() > 0
@@ -39,17 +37,17 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    match /case-studies/{caseStudyId} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
     match /settings/{settingId} {
       allow read: if true;
       allow write: if isAdmin();
     }
 
     match /achievements/{achievementId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /case-studies/{caseStudyId} {
       allow read: if true;
       allow write: if isAdmin();
     }
